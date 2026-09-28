@@ -37,6 +37,23 @@ spring:
       test-on-borrow: false
       test-on-return: false
 
+  # ---------------- Spring AI 1.1.8 GA / OpenAI Starter ----------------
+  # API Key 优先读 OPENAI_API_KEY（百炼默认变量名），回退 LLM_API_KEY，都没配则降级规则引擎
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${LLM_API_BASE:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      chat:
+        options:
+          model: qwen3.7-flash
+          temperature: 0.3
+          max-tokens: 512
+    retry:
+      max-attempts: 2
+      backoff:
+        multiplier: 2
+        initial-interval: 1000ms
+
 # ---------------- MyBatis ----------------
 mybatis:
   # 全局 settings（驼峰映射、SQL 控制台打印）配置在 mybatis-config.xml
@@ -63,3 +80,9 @@ logging:
   level:
     root: info
     com.example.station: debug
+
+# ---------------- 业务自定义配置 ----------------
+station:
+  pickup-recommend:
+    # 是否启用 LLM Function Calling；false 则跳过 LLM 直接规则推荐（开发/离线环境可用）
+    llm-enabled: ${PICKUP_RECOMMEND_LLM_ENABLED:true}

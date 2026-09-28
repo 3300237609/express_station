@@ -235,4 +235,18 @@ public interface ExpressMapper {
      * @return 按日期升序的取件趋势
      */
     List<TrendVO> selectPickupTrend(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /**
+     * 按小时聚合的取件量分布（过去 days 天内，按 HOUR(pickup_time) 统计）
+     * @param days 天数（过去多少天，必传）
+     * @return 每行：hour（0~23）、count；无数据的小时不出现在结果中（调用方补 0）
+     */
+    List<java.util.Map<String, Object>> selectHourlyPickupDistribution(@Param("days") int days);
+
+    /**
+     * 按星期几 + 小时聚合的取件量分布（过去 days 天内）
+     * @param days 天数（过去多少天，必传）
+     * @return 每行：weekday（1=周一…7=周日）、hour（0~23）、count
+     */
+    List<java.util.Map<String, Object>> selectWeekdayHourPickupDistribution(@Param("days") int days);
 }
