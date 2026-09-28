@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 角色表 sys_role 数据访问映射 -->
+<mapper namespace="com.example.station.mapper.SysRoleMapper">
+
+    <!-- 按角色编码查询角色ID -->
+    <select id="selectIdByCode" resultType="java.lang.Long">
+        SELECT
+            id AS id
+        FROM sys_role
+        WHERE role_code = #{code}
+    </select>
+
+</mapper>

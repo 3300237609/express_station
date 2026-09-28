@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.station.mapper.ExpressExceptionMapper">
+
+    <select id="selectByExpressId" resultType="com.example.station.entity.ExpressException">
+        SELECT
+            id AS id,
+            express_id AS expressId,
+            exception_type AS exceptionType,
+            description AS description,
+            image_url AS imageUrl,
+            reporter_id AS reporterId,
+            handler_id AS handlerId,
+            handle_status AS handleStatus,
+            handle_remark AS handleRemark,
+            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(handle_time, '%Y-%m-%d %H:%i:%s') AS handleTime,
+            DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express_exception
+        WHERE express_id = #{expressId}
+        ORDER BY create_time ASC
+    </select>
+
+    <!-- 统计未处理完的异常记录（待处理/处理中） -->
+    <select id="countOpen" resultType="java.lang.Long">
+        SELECT COUNT(*) AS count
+        FROM express_exception
+        WHERE handle_status IN ('PENDING', 'PROCESSING')
+    </select>
+
+    <!-- 条件查询异常件列表：JOIN 快递单号与登记/处理人姓名，按登记时间倒序 -->
+    <select id="selectList" resultType="com.example.station.vo.ExceptionVO">
+        SELECT
+            x.id AS id,
+            x.express_id AS expressId,
+            e.express_no AS expressNo,
+            e.receiver_name AS receiverName,
+            e.receiver_phone AS receiverPhone,
+            e.status AS expressStatus,
+            x.exception_type AS exceptionType,
+            x.description AS description,
+            x.image_url AS imageUrl,
+            x.reporter_id AS reporterId,
+            ru.real_name AS reporterName,
+            x.handler_id AS handlerId,
+            hu.real_name AS handlerName,
+            x.handle_status AS handleStatus,
+            x.handle_remark AS handleRemark,
+            DATE_FORMAT(x.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(x.handle_time, '%Y-%m-%d %H:%i:%s') AS handleTime,
+            DATE_FORMAT(x.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express_exception x
+        LEFT JOIN express e ON e.id = x.express_id
+        LEFT JOIN sys_user ru ON ru.id = x.reporter_id
+        LEFT JOIN sys_user hu ON hu.id = x.handler_id
+        WHERE 1 = 1
+        <if test="expressId != null">
+            AND x.express_id = #{expressId}
+        </if>
+        <if test="exceptionType != null and exceptionType != ''">
+            AND x.exception_type = #{exceptionType}
+        </if>
+        <if test="handleStatus != null and handleStatus != ''">
+            AND x.handle_status = #{handleStatus}
+        </if>
+        <if test="reporterId != null">
+            AND x.reporter_id = #{reporterId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (e.express_no LIKE CONCAT('%', #{keyword}, '%')
+                OR e.receiver_name LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY x.id DESC
+    </select>
+
+    <select id="selectById" resultType="com.example.station.vo.ExceptionVO">
+        SELECT
+            x.id AS id,
+            x.express_id AS expressId,
+            e.express_no AS expressNo,
+            e.receiver_name AS receiverName,
+            e.receiver_phone AS receiverPhone,
+            e.status AS expressStatus,
+            x.exception_type AS exceptionType,
+            x.description AS description,
+            x.image_url AS imageUrl,
+            x.reporter_id AS reporterId,
+            ru.real_name AS reporterName,
+            x.handler_id AS handlerId,
+            hu.real_name AS handlerName,
+            x.handle_status AS handleStatus,
+            x.handle_remark AS handleRemark,
+            DATE_FORMAT(x.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(x.handle_time, '%Y-%m-%d %H:%i:%s') AS handleTime,
+            DATE_FORMAT(x.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express_exception x
+        LEFT JOIN express e ON e.id = x.express_id
+        LEFT JOIN sys_user ru ON ru.id = x.reporter_id
+        LEFT JOIN sys_user hu ON hu.id = x.handler_id
+        WHERE x.id = #{id}
+    </select>
+
+    <insert id="insert" parameterType="com.example.station.entity.ExpressException"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO express_exception (
+            express_id,
+            exception_type,
+            description,
+            image_url,
+            reporter_id,
+            handler_id,
+            handle_status,
+            handle_remark,
+            create_time,
+            handle_time,
+            update_time
+        ) VALUES (
+            #{expressId},
+            #{exceptionType},
+            #{description},
+            #{imageUrl},
+            #{reporterId},
+            #{handlerId},
+            #{handleStatus},
+            #{handleRemark},
+            NOW(),
+            #{handleTime},
+            NOW()
+        )
+    </insert>
+
+    <update id="updateHandle">
+        UPDATE express_exception
+        SET handler_id = #{handlerId},
+            handle_status = #{handleStatus},
+            handle_remark = #{handleRemark},
+            handle_time = #{handleTime},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <!-- 统计本人异常登记数（今日/本月/累计，业绩口径：reporter_id=本人） -->
+    <select id="countExceptionByReporter" resultType="com.example.station.vo.PeriodCountVO">
+        SELECT
+            COALESCE(SUM(CASE WHEN create_time >= CURDATE() THEN 1 ELSE 0 END), 0) AS todayCount,
+            COALESCE(SUM(CASE WHEN create_time >= DATE_FORMAT(NOW(), '%Y-%m-01') THEN 1 ELSE 0 END), 0) AS monthCount,
+            COUNT(*) AS totalCount
+        FROM express_exception
+        WHERE reporter_id = #{userId}
+    </select>
+
+</mapper>

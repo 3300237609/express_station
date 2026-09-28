@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.station.mapper.NotificationMapper">
+
+    <select id="selectMyList" resultType="com.example.station.vo.NotificationVO">
+        SELECT
+            n.id AS id,
+            n.user_id AS userId,
+            n.express_id AS expressId,
+            e.express_no AS expressNo,
+            n.title AS title,
+            n.content AS content,
+            n.type AS type,
+            n.is_read AS isRead,
+            DATE_FORMAT(n.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(n.read_time, '%Y-%m-%d %H:%i:%s') AS readTime
+        FROM notification n
+        LEFT JOIN express e ON e.id = n.express_id AND e.deleted = 0
+        WHERE n.user_id = #{userId}
+        <if test="isRead != null">
+            AND n.is_read = #{isRead}
+        </if>
+        <if test="type != null and type != ''">
+            AND n.type = #{type}
+        </if>
+        ORDER BY n.id DESC
+    </select>
+
+    <select id="countUnread" resultType="java.lang.Long">
+        SELECT COUNT(*) AS count
+        FROM notification
+        WHERE user_id = #{userId}
+          AND is_read = 0
+    </select>
+
+    <select id="selectManageList" resultType="com.example.station.vo.NotificationVO">
+        SELECT
+            n.id AS id,
+            n.user_id AS userId,
+            n.express_id AS expressId,
+            e.express_no AS expressNo,
+            n.title AS title,
+            n.content AS content,
+            n.type AS type,
+            n.is_read AS isRead,
+            DATE_FORMAT(n.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(n.read_time, '%Y-%m-%d %H:%i:%s') AS readTime
+        FROM notification n
+        LEFT JOIN express e ON e.id = n.express_id AND e.deleted = 0
+        WHERE 1 = 1
+        <if test="userId != null">
+            AND n.user_id = #{userId}
+        </if>
+        <if test="type != null and type != ''">
+            AND n.type = #{type}
+        </if>
+        ORDER BY n.id DESC
+    </select>
+
+    <update id="updateRead">
+        UPDATE notification
+        SET is_read = 1,
+            read_time = #{readTime}
+        WHERE id = #{id}
+          AND user_id = #{userId}
+          AND is_read = 0
+    </update>
+
+    <update id="updateReadAll">
+        UPDATE notification
+        SET is_read = 1,
+            read_time = #{readTime}
+        WHERE user_id = #{userId}
+          AND is_read = 0
+    </update>
+
+    <insert id="insertBatch">
+        INSERT INTO notification (
+            user_id,
+            express_id,
+            title,
+            content,
+            type,
+            is_read,
+            create_time
+        ) VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.userId}, #{item.expressId}, #{item.title}, #{item.content},
+             #{item.type}, 0, NOW())
+        </foreach>
+    </insert>
+
+    <insert id="insert" parameterType="com.example.station.entity.Notification"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO notification (
+            user_id,
+            express_id,
+            title,
+            content,
+            type,
+            is_read,
+            create_time
+        ) VALUES (
+            #{userId},
+            #{expressId},
+            #{title},
+            #{content},
+            #{type},
+            0,
+            NOW()
+        )
+    </insert>
+
+</mapper>

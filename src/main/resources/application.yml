@@ -1,0 +1,65 @@
+# ============================================================
+# 快递末端智能驿站系统 · 后端主配置（项目唯一配置入口，不混用 properties）
+# ============================================================
+
+server:
+  port: 80
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+
+spring:
+  application:
+    name: station-server
+
+  # 排除默认内存用户：本项目使用自定义 JWT 认证，无需 Boot 生成的临时密码
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+
+  # ---------------- 数据源（MySQL + Druid 连接池）----------------
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # characterEncoding 必须是 Java 合法字符集名（UTF-8），MySQL 侧对应 utf8mb4；写 utf8mb4 会导致 Unsupported character encoding 建连失败
+    url: "jdbc:mysql://localhost:3306/express_station?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true"
+    username: root
+    # 密码通过环境变量 MYSQL_PASSWORD 注入，不提交明文；未设置时回退为本地开发默认值
+    password: ${MYSQL_PASSWORD:root}
+    druid:
+      # 启动时不预创建连接：本地未启动 MySQL 应用也能正常启动，首次取连接时再建立
+      initial-size: 0
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+
+# ---------------- MyBatis ----------------
+mybatis:
+  # 全局 settings（驼峰映射、SQL 控制台打印）配置在 mybatis-config.xml
+  config-location: classpath:mybatis/mybatis-config.xml
+  type-aliases-package: com.example.station.entity
+  mapper-locations: classpath:mybatis/mapper/*.xml
+
+# ---------------- PageHelper 分页 ----------------
+pagehelper:
+  helper-dialect: mysql
+  reasonable: true
+  support-methods-arguments: true
+  params: count=countSql
+
+# ---------------- JWT ----------------
+jwt:
+  # 签名密钥：生产环境必须通过环境变量 JWT_SECRET 注入（长度 ≥ 32 字节），不提交明文
+  secret: ${JWT_SECRET:express-station-jwt-secret-change-me-0123456789}
+  expire-days: 7
+  cookie-name: authToken
+
+# ---------------- 日志 ----------------
+logging:
+  level:
+    root: info
+    com.example.station: debug

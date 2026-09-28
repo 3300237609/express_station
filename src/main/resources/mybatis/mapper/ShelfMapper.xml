@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.station.mapper.ShelfMapper">
+
+    <select id="selectList" resultType="com.example.station.vo.ShelfVO">
+        SELECT
+            id AS id,
+            shelf_no AS shelfNo,
+            area AS area,
+            capacity AS capacity,
+            used_count AS usedCount,
+            status AS status,
+            remark AS remark,
+            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM shelf
+        WHERE deleted = 0
+        <if test="keyword != null and keyword != ''">
+            AND (shelf_no LIKE CONCAT('%', #{keyword}, '%')
+                OR area LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+        ORDER BY shelf_no ASC
+    </select>
+
+    <select id="selectById" resultType="com.example.station.vo.ShelfVO">
+        SELECT
+            id AS id,
+            shelf_no AS shelfNo,
+            area AS area,
+            capacity AS capacity,
+            used_count AS usedCount,
+            status AS status,
+            remark AS remark,
+            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM shelf
+        WHERE id = #{id}
+          AND deleted = 0
+    </select>
+
+    <!-- 统计货架编号数量（新增/修改查重，修改时排除自身） -->
+    <!-- 注意：不过滤 deleted，与 uk_shelf_no 全局唯一键一致，已删除货架仍占用编号 -->
+    <select id="countByShelfNo" resultType="int">
+        SELECT COUNT(*) AS count
+        FROM shelf
+        WHERE shelf_no = #{shelfNo}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <insert id="insert" parameterType="com.example.station.entity.Shelf"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO shelf (
+            shelf_no,
+            area,
+            capacity,
+            used_count,
+            status,
+            remark,
+            deleted,
+            create_time,
+            update_time
+        ) VALUES (
+            #{shelfNo},
+            #{area},
+            #{capacity},
+            #{usedCount},
+            #{status},
+            #{remark},
+            #{deleted},
+            #{createTime},
+            #{updateTime}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.example.station.entity.Shelf">
+        UPDATE shelf
+        SET shelf_no = #{shelfNo},
+            area = #{area},
+            remark = #{remark},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <update id="updateStatus">
+        UPDATE shelf
+        SET status = #{status},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <update id="delete">
+        UPDATE shelf
+        SET deleted = 1,
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <update id="increaseCapacity">
+        UPDATE shelf
+        SET capacity = capacity + 1,
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <update id="decreaseCapacity">
+        UPDATE shelf
+        SET capacity = capacity - 1,
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <!-- 按货位表实时统计 used_count>0 的货位数重算已使用数量（自愈式同步，无并发漂移） -->
+    <update id="refreshUsed">
+        UPDATE shelf
+        SET used_count = (SELECT COUNT(*) FROM shelf_location
+                          WHERE shelf_id = #{id} AND used_count > 0),
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+</mapper>

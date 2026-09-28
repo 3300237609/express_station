@@ -1,0 +1,509 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.station.mapper.ExpressMapper">
+
+    <select id="selectList" resultType="com.example.station.vo.ExpressVO">
+        SELECT
+            e.id AS id,
+            e.express_no AS expressNo,
+            e.company_id AS companyId,
+            c.company_name AS companyName,
+            e.sender_name AS senderName,
+            e.sender_phone AS senderPhone,
+            e.receiver_name AS receiverName,
+            e.receiver_phone AS receiverPhone,
+            e.receiver_user_id AS receiverUserId,
+            e.pickup_code AS pickupCode,
+            e.location_id AS locationId,
+            s.shelf_no AS shelfNo,
+            l.location_no AS locationNo,
+            e.status AS status,
+            e.size_type AS sizeType,
+            e.weight AS weight,
+            DATE_FORMAT(e.arrival_time, '%Y-%m-%d %H:%i:%s') AS arrivalTime,
+            DATE_FORMAT(e.storage_time, '%Y-%m-%d %H:%i:%s') AS storageTime,
+            DATE_FORMAT(e.pickup_time, '%Y-%m-%d %H:%i:%s') AS pickupTime,
+            e.overdue_flag AS overdueFlag,
+            e.remark AS remark,
+            DATE_FORMAT(e.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(e.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express e
+        LEFT JOIN express_company c ON c.id = e.company_id
+        LEFT JOIN shelf_location l ON l.id = e.location_id
+        LEFT JOIN shelf s ON s.id = l.shelf_id
+        WHERE e.deleted = 0
+        <if test="keyword != null and keyword != ''">
+            AND e.express_no LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        <if test="pickupCode != null and pickupCode != ''">
+            AND e.pickup_code LIKE CONCAT('%', #{pickupCode}, '%')
+        </if>
+        <if test="receiverName != null and receiverName != ''">
+            AND e.receiver_name LIKE CONCAT('%', #{receiverName}, '%')
+        </if>
+        <if test="receiverPhone != null and receiverPhone != ''">
+            AND e.receiver_phone LIKE CONCAT('%', #{receiverPhone}, '%')
+        </if>
+        <if test="companyId != null">
+            AND e.company_id = #{companyId}
+        </if>
+        <if test="status != null and status != ''">
+            AND e.status = #{status}
+        </if>
+        <if test="arrivalTimeStart != null">
+            AND e.arrival_time &gt;= #{arrivalTimeStart}
+        </if>
+        <if test="arrivalTimeEnd != null">
+            AND e.arrival_time &lt;= #{arrivalTimeEnd}
+        </if>
+        ORDER BY e.id DESC
+    </select>
+
+    <select id="selectById" resultType="com.example.station.vo.ExpressVO">
+        SELECT
+            e.id AS id,
+            e.express_no AS expressNo,
+            e.company_id AS companyId,
+            c.company_name AS companyName,
+            e.sender_name AS senderName,
+            e.sender_phone AS senderPhone,
+            e.receiver_name AS receiverName,
+            e.receiver_phone AS receiverPhone,
+            e.receiver_user_id AS receiverUserId,
+            e.pickup_code AS pickupCode,
+            e.location_id AS locationId,
+            s.shelf_no AS shelfNo,
+            l.location_no AS locationNo,
+            e.status AS status,
+            e.size_type AS sizeType,
+            e.weight AS weight,
+            DATE_FORMAT(e.arrival_time, '%Y-%m-%d %H:%i:%s') AS arrivalTime,
+            DATE_FORMAT(e.storage_time, '%Y-%m-%d %H:%i:%s') AS storageTime,
+            DATE_FORMAT(e.pickup_time, '%Y-%m-%d %H:%i:%s') AS pickupTime,
+            e.overdue_flag AS overdueFlag,
+            e.remark AS remark,
+            DATE_FORMAT(e.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(e.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express e
+        LEFT JOIN express_company c ON c.id = e.company_id
+        LEFT JOIN shelf_location l ON l.id = e.location_id
+        LEFT JOIN shelf s ON s.id = l.shelf_id
+        WHERE e.id = #{id}
+          AND e.deleted = 0
+    </select>
+
+    <!-- 单号全局唯一，至多一行；逻辑删除排除，异常登记按单号定位用 -->
+    <select id="selectByExpressNo" resultType="com.example.station.vo.ExpressVO">
+        SELECT
+            e.id AS id,
+            e.express_no AS expressNo,
+            e.company_id AS companyId,
+            c.company_name AS companyName,
+            e.sender_name AS senderName,
+            e.sender_phone AS senderPhone,
+            e.receiver_name AS receiverName,
+            e.receiver_phone AS receiverPhone,
+            e.receiver_user_id AS receiverUserId,
+            e.pickup_code AS pickupCode,
+            e.location_id AS locationId,
+            s.shelf_no AS shelfNo,
+            l.location_no AS locationNo,
+            e.status AS status,
+            e.size_type AS sizeType,
+            e.weight AS weight,
+            DATE_FORMAT(e.arrival_time, '%Y-%m-%d %H:%i:%s') AS arrivalTime,
+            DATE_FORMAT(e.storage_time, '%Y-%m-%d %H:%i:%s') AS storageTime,
+            DATE_FORMAT(e.pickup_time, '%Y-%m-%d %H:%i:%s') AS pickupTime,
+            e.overdue_flag AS overdueFlag,
+            e.remark AS remark,
+            DATE_FORMAT(e.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(e.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express e
+        LEFT JOIN express_company c ON c.id = e.company_id
+        LEFT JOIN shelf_location l ON l.id = e.location_id
+        LEFT JOIN shelf s ON s.id = l.shelf_id
+        WHERE e.express_no = #{expressNo}
+          AND e.deleted = 0
+    </select>
+
+    <!-- 查重不过滤 deleted，与 uk_express_no 全局唯一键一致，已删除快递仍占单号 -->
+    <select id="countByExpressNo" resultType="int">
+        SELECT COUNT(*) AS count
+        FROM express
+        WHERE express_no = #{expressNo}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <!-- 查重不过滤 deleted，与 uk_pickup_code 一致，已取件的取件码不复用 -->
+    <select id="countByPickupCode" resultType="int">
+        SELECT COUNT(*) AS count
+        FROM express
+        WHERE pickup_code = #{pickupCode}
+    </select>
+
+    <insert id="insert" parameterType="com.example.station.entity.Express"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO express (
+            express_no,
+            company_id,
+            sender_name,
+            sender_phone,
+            receiver_name,
+            receiver_phone,
+            receiver_user_id,
+            pickup_code,
+            location_id,
+            status,
+            size_type,
+            weight,
+            arrival_time,
+            storage_time,
+            pickup_time,
+            overdue_flag,
+            remark,
+            deleted,
+            create_time,
+            update_time
+        ) VALUES (
+            #{expressNo},
+            #{companyId},
+            #{senderName},
+            #{senderPhone},
+            #{receiverName},
+            #{receiverPhone},
+            #{receiverUserId},
+            #{pickupCode},
+            #{locationId},
+            #{status},
+            #{sizeType},
+            #{weight},
+            #{arrivalTime},
+            #{storageTime},
+            #{pickupTime},
+            #{overdueFlag},
+            #{remark},
+            #{deleted},
+            #{createTime},
+            #{updateTime}
+        )
+    </insert>
+
+    <!-- 仅更新可维护字段：不改 pickup_code/status/location_id/业务时间戳/overdue_flag -->
+    <update id="update" parameterType="com.example.station.entity.Express">
+        UPDATE express
+        SET express_no = #{expressNo},
+            company_id = #{companyId},
+            sender_name = #{senderName},
+            sender_phone = #{senderPhone},
+            receiver_name = #{receiverName},
+            receiver_phone = #{receiverPhone},
+            receiver_user_id = #{receiverUserId},
+            size_type = #{sizeType},
+            weight = #{weight},
+            arrival_time = #{arrivalTime},
+            remark = #{remark},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <update id="updateStatus">
+        UPDATE express
+        SET status = #{status},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <update id="delete">
+        UPDATE express
+        SET deleted = 1,
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <select id="selectByPickupCode" resultType="com.example.station.vo.ExpressVO">
+        SELECT
+            e.id AS id,
+            e.express_no AS expressNo,
+            e.company_id AS companyId,
+            c.company_name AS companyName,
+            e.sender_name AS senderName,
+            e.sender_phone AS senderPhone,
+            e.receiver_name AS receiverName,
+            e.receiver_phone AS receiverPhone,
+            e.receiver_user_id AS receiverUserId,
+            e.pickup_code AS pickupCode,
+            e.location_id AS locationId,
+            s.shelf_no AS shelfNo,
+            l.location_no AS locationNo,
+            e.status AS status,
+            e.size_type AS sizeType,
+            e.weight AS weight,
+            DATE_FORMAT(e.arrival_time, '%Y-%m-%d %H:%i:%s') AS arrivalTime,
+            DATE_FORMAT(e.storage_time, '%Y-%m-%d %H:%i:%s') AS storageTime,
+            DATE_FORMAT(e.pickup_time, '%Y-%m-%d %H:%i:%s') AS pickupTime,
+            e.overdue_flag AS overdueFlag,
+            e.remark AS remark,
+            DATE_FORMAT(e.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(e.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express e
+        LEFT JOIN express_company c ON c.id = e.company_id
+        LEFT JOIN shelf_location l ON l.id = e.location_id
+        LEFT JOIN shelf s ON s.id = l.shelf_id
+        WHERE e.pickup_code = #{pickupCode}
+          AND e.deleted = 0
+    </select>
+
+    <select id="selectReceiverList" resultType="com.example.station.vo.ExpressVO">
+        SELECT
+            e.id AS id,
+            e.express_no AS expressNo,
+            e.company_id AS companyId,
+            c.company_name AS companyName,
+            e.sender_name AS senderName,
+            e.sender_phone AS senderPhone,
+            e.receiver_name AS receiverName,
+            e.receiver_phone AS receiverPhone,
+            e.receiver_user_id AS receiverUserId,
+            e.pickup_code AS pickupCode,
+            e.location_id AS locationId,
+            s.shelf_no AS shelfNo,
+            l.location_no AS locationNo,
+            e.status AS status,
+            e.size_type AS sizeType,
+            e.weight AS weight,
+            DATE_FORMAT(e.arrival_time, '%Y-%m-%d %H:%i:%s') AS arrivalTime,
+            DATE_FORMAT(e.storage_time, '%Y-%m-%d %H:%i:%s') AS storageTime,
+            DATE_FORMAT(e.pickup_time, '%Y-%m-%d %H:%i:%s') AS pickupTime,
+            e.overdue_flag AS overdueFlag,
+            e.remark AS remark,
+            DATE_FORMAT(e.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(e.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express e
+        LEFT JOIN express_company c ON c.id = e.company_id
+        LEFT JOIN shelf_location l ON l.id = e.location_id
+        LEFT JOIN shelf s ON s.id = l.shelf_id
+        WHERE e.deleted = 0
+          AND (e.receiver_user_id = #{userId}
+            <if test="phone != null and phone != ''">
+                OR e.receiver_phone = #{phone}
+            </if>)
+        <if test="keyword != null and keyword != ''">
+            AND e.express_no LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        <if test="status != null and status != ''">
+            AND e.status = #{status}
+        </if>
+        ORDER BY e.id DESC
+    </select>
+
+    <!-- 快递员「我的快递」：本人经手入库的快递（「完成入库」SUCCESS 动作经 description 前缀 3 字符反查归属），
+         列与 keyword/status 过滤与收件视角 selectReceiverList 一致，按 id 倒序 -->
+    <select id="selectInboundedList" resultType="com.example.station.vo.ExpressVO">
+        SELECT
+            e.id AS id,
+            e.express_no AS expressNo,
+            e.company_id AS companyId,
+            c.company_name AS companyName,
+            e.sender_name AS senderName,
+            e.sender_phone AS senderPhone,
+            e.receiver_name AS receiverName,
+            e.receiver_phone AS receiverPhone,
+            e.receiver_user_id AS receiverUserId,
+            e.pickup_code AS pickupCode,
+            e.location_id AS locationId,
+            s.shelf_no AS shelfNo,
+            l.location_no AS locationNo,
+            e.status AS status,
+            e.size_type AS sizeType,
+            e.weight AS weight,
+            DATE_FORMAT(e.arrival_time, '%Y-%m-%d %H:%i:%s') AS arrivalTime,
+            DATE_FORMAT(e.storage_time, '%Y-%m-%d %H:%i:%s') AS storageTime,
+            DATE_FORMAT(e.pickup_time, '%Y-%m-%d %H:%i:%s') AS pickupTime,
+            e.overdue_flag AS overdueFlag,
+            e.remark AS remark,
+            DATE_FORMAT(e.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(e.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express e
+        LEFT JOIN express_company c ON c.id = e.company_id
+        LEFT JOIN shelf_location l ON l.id = e.location_id
+        LEFT JOIN shelf s ON s.id = l.shelf_id
+        WHERE e.deleted = 0
+          AND EXISTS (
+              SELECT 1
+              FROM operation_log ol
+              WHERE ol.user_id = #{userId}
+                AND ol.module = '快递入库'
+                AND ol.operation = '完成入库'
+                AND ol.result = 'SUCCESS'
+                AND (SUBSTRING(ol.description, 4) COLLATE utf8mb4_unicode_ci = e.express_no COLLATE utf8mb4_unicode_ci
+                     OR SUBSTRING(ol.description, 4) COLLATE utf8mb4_unicode_ci = CAST(e.id AS CHAR) COLLATE utf8mb4_unicode_ci)
+          )
+        <if test="keyword != null and keyword != ''">
+            AND e.express_no LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        <if test="status != null and status != ''">
+            AND e.status = #{status}
+        </if>
+        ORDER BY e.id DESC
+    </select>
+
+    <!-- 入库绑定：状态守卫仅待入库且未占货位；写前校验已由 Service 完成，affected=0 属并发异常须回滚 -->
+    <update id="updateInbound">
+        UPDATE express
+        SET location_id = #{locationId},
+            status = #{status},
+            storage_time = #{storageTime},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND status = #{expectStatus}
+          AND location_id IS NULL
+          AND deleted = 0
+    </update>
+
+    <!-- 取件出库：状态守卫仅待取件；置已取件、写取件时间、释放货位（location_id 置空） -->
+    <update id="updatePickup">
+        UPDATE express
+        SET status = #{status},
+            pickup_time = #{pickupTime},
+            location_id = NULL,
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND status = #{expectStatus}
+          AND deleted = 0
+    </update>
+
+    <update id="updateOverdueFlag">
+        UPDATE express
+        SET overdue_flag = 1,
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND deleted = 0
+    </update>
+
+    <!-- 调整货位：货位与状态双守卫防并发出库/重复调整；写前校验已由 Service 完成，affected=0 属并发异常须回滚 -->
+    <update id="updateLocation">
+        UPDATE express
+        SET location_id = #{locationId},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND location_id = #{oldLocationId}
+          AND status = #{expectStatus}
+          AND deleted = 0
+    </update>
+
+    <!-- 超期候选：待取件、未标记、入库时间早于截止时间 -->
+    <select id="selectOverdueCandidates" resultType="com.example.station.vo.ExpressVO">
+        SELECT
+            e.id AS id,
+            e.express_no AS expressNo,
+            e.receiver_user_id AS receiverUserId,
+            e.receiver_name AS receiverName,
+            e.receiver_phone AS receiverPhone,
+            e.pickup_code AS pickupCode,
+            DATE_FORMAT(e.storage_time, '%Y-%m-%d %H:%i:%s') AS storageTime
+        FROM express e
+        WHERE e.deleted = 0
+          AND e.status = 'WAITING_PICKUP'
+          AND e.overdue_flag = 0
+          AND e.storage_time IS NOT NULL
+          AND e.storage_time &lt; #{cutoff}
+        ORDER BY e.id ASC
+    </select>
+
+    <!-- 超期列表：已标记超期且仍待取，超期时长按配置时长计算 -->
+    <select id="selectOverdueList" resultType="com.example.station.vo.OverdueVO">
+        SELECT
+            e.id AS id,
+            e.express_no AS expressNo,
+            e.receiver_name AS receiverName,
+            e.receiver_phone AS receiverPhone,
+            e.pickup_code AS pickupCode,
+            e.location_id AS locationId,
+            s.shelf_no AS shelfNo,
+            l.location_no AS locationNo,
+            DATE_FORMAT(e.storage_time, '%Y-%m-%d %H:%i:%s') AS storageTime,
+            e.overdue_flag AS overdueFlag,
+            IFNULL(TIMESTAMPDIFF(HOUR, DATE_ADD(e.storage_time, INTERVAL #{hours} HOUR), NOW()), 0) AS overdueHours,
+            e.remark AS remark
+        FROM express e
+        LEFT JOIN shelf_location l ON l.id = e.location_id
+        LEFT JOIN shelf s ON s.id = l.shelf_id
+        WHERE e.deleted = 0
+          AND e.status = 'WAITING_PICKUP'
+          AND e.overdue_flag = 1
+        <if test="keyword != null and keyword != ''">
+            AND (e.express_no LIKE CONCAT('%', #{keyword}, '%')
+                OR e.receiver_name LIKE CONCAT('%', #{keyword}, '%')
+                OR e.receiver_phone LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY e.storage_time ASC
+    </select>
+
+    <select id="countAll" resultType="java.lang.Long">
+        SELECT COUNT(*) AS count
+        FROM express
+        WHERE deleted = 0
+    </select>
+
+    <select id="countTodayInbound" resultType="java.lang.Long">
+        SELECT COUNT(*) AS count
+        FROM express
+        WHERE deleted = 0
+          AND DATE(storage_time) = CURDATE()
+    </select>
+
+    <select id="countTodayPickup" resultType="java.lang.Long">
+        SELECT COUNT(*) AS count
+        FROM express
+        WHERE deleted = 0
+          AND DATE(pickup_time) = CURDATE()
+    </select>
+
+    <select id="countWaitingPickup" resultType="java.lang.Long">
+        SELECT COUNT(*) AS count
+        FROM express
+        WHERE deleted = 0
+          AND status = 'WAITING_PICKUP'
+    </select>
+
+    <select id="countOverdue" resultType="java.lang.Long">
+        SELECT COUNT(*) AS count
+        FROM express
+        WHERE deleted = 0
+          AND status = 'WAITING_PICKUP'
+          AND overdue_flag = 1
+    </select>
+
+    <select id="selectInboundTrend" resultType="com.example.station.vo.TrendVO">
+        SELECT
+            DATE_FORMAT(storage_time, '%Y-%m-%d') AS date,
+            COUNT(*) AS inboundCount
+        FROM express
+        WHERE deleted = 0
+          AND storage_time IS NOT NULL
+          AND DATE(storage_time) &gt;= #{start}
+          AND DATE(storage_time) &lt;= #{end}
+        GROUP BY DATE_FORMAT(storage_time, '%Y-%m-%d')
+        ORDER BY DATE_FORMAT(storage_time, '%Y-%m-%d') ASC
+    </select>
+
+    <select id="selectPickupTrend" resultType="com.example.station.vo.TrendVO">
+        SELECT
+            DATE_FORMAT(pickup_time, '%Y-%m-%d') AS date,
+            COUNT(*) AS pickupCount
+        FROM express
+        WHERE deleted = 0
+          AND pickup_time IS NOT NULL
+          AND DATE(pickup_time) &gt;= #{start}
+          AND DATE(pickup_time) &lt;= #{end}
+        GROUP BY DATE_FORMAT(pickup_time, '%Y-%m-%d')
+        ORDER BY DATE_FORMAT(pickup_time, '%Y-%m-%d') ASC
+    </select>
+
+</mapper>

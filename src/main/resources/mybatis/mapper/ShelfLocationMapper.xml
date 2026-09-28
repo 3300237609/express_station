@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.station.mapper.ShelfLocationMapper">
+
+    <select id="selectList" resultType="com.example.station.vo.ShelfLocationVO">
+        SELECT
+            l.id AS id,
+            l.shelf_id AS shelfId,
+            s.shelf_no AS shelfNo,
+            s.area AS area,
+            l.location_no AS locationNo,
+            l.row_no AS rowNo,
+            l.column_no AS columnNo,
+            l.capacity AS capacity,
+            l.used_count AS usedCount,
+            l.status AS status,
+            DATE_FORMAT(l.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(l.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM shelf_location l
+        JOIN shelf s ON s.id = l.shelf_id
+            AND s.deleted = 0
+        <where>
+            <if test="shelfId != null">
+                AND l.shelf_id = #{shelfId}
+            </if>
+            <if test="status != null">
+                AND l.status = #{status}
+            </if>
+        </where>
+        ORDER BY l.shelf_id ASC, l.row_no ASC, l.column_no ASC
+    </select>
+
+    <select id="selectById" resultType="com.example.station.vo.ShelfLocationVO">
+        SELECT
+            l.id AS id,
+            l.shelf_id AS shelfId,
+            s.shelf_no AS shelfNo,
+            s.area AS area,
+            l.location_no AS locationNo,
+            l.row_no AS rowNo,
+            l.column_no AS columnNo,
+            l.capacity AS capacity,
+            l.used_count AS usedCount,
+            l.status AS status,
+            DATE_FORMAT(l.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(l.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM shelf_location l
+        JOIN shelf s ON s.id = l.shelf_id
+            AND s.deleted = 0
+        WHERE l.id = #{id}
+    </select>
+
+    <select id="selectFreeList" resultType="com.example.station.vo.ShelfLocationVO">
+        SELECT
+            l.id AS id,
+            l.shelf_id AS shelfId,
+            s.shelf_no AS shelfNo,
+            s.area AS area,
+            l.location_no AS locationNo,
+            l.row_no AS rowNo,
+            l.column_no AS columnNo,
+            l.capacity AS capacity,
+            l.used_count AS usedCount,
+            l.status AS status,
+            DATE_FORMAT(l.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(l.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM shelf_location l
+        JOIN shelf s ON s.id = l.shelf_id
+            AND s.deleted = 0
+            AND s.status = 1
+        WHERE l.status = 1
+          AND l.used_count = 0
+        <if test="shelfId != null">
+            AND l.shelf_id = #{shelfId}
+        </if>
+        ORDER BY l.shelf_id ASC, l.row_no ASC, l.column_no ASC
+    </select>
+
+    <select id="countByLocationNo" resultType="int">
+        SELECT COUNT(*) AS count
+        FROM shelf_location
+        WHERE location_no = #{locationNo}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <select id="countByShelfIdRowCol" resultType="int">
+        SELECT COUNT(*) AS count
+        FROM shelf_location
+        WHERE shelf_id = #{shelfId}
+          AND row_no = #{rowNo}
+          AND column_no = #{columnNo}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <select id="countOccupiedByShelfId" resultType="int">
+        SELECT COUNT(*) AS count
+        FROM shelf_location
+        WHERE shelf_id = #{shelfId}
+          AND used_count > 0
+    </select>
+
+    <insert id="insert" parameterType="com.example.station.entity.ShelfLocation"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO shelf_location (
+            shelf_id,
+            location_no,
+            row_no,
+            column_no,
+            capacity,
+            used_count,
+            status,
+            create_time,
+            update_time
+        ) VALUES (
+            #{shelfId},
+            #{locationNo},
+            #{rowNo},
+            #{columnNo},
+            #{capacity},
+            #{usedCount},
+            #{status},
+            #{createTime},
+            #{updateTime}
+        )
+    </insert>
+
+    <update id="update" parameterType="com.example.station.entity.ShelfLocation">
+        UPDATE shelf_location
+        SET location_no = #{locationNo},
+            row_no = #{rowNo},
+            column_no = #{columnNo},
+            capacity = #{capacity},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateStatus">
+        UPDATE shelf_location
+        SET status = #{status},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM shelf_location
+        WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByShelfId">
+        DELETE FROM shelf_location
+        WHERE shelf_id = #{shelfId}
+    </delete>
+
+    <!-- 可推荐货位：未停用、有剩余容量、所属货架正常 -->
+    <select id="selectRecommendList" resultType="com.example.station.vo.ShelfLocationVO">
+        SELECT
+            l.id AS id,
+            l.shelf_id AS shelfId,
+            s.shelf_no AS shelfNo,
+            s.area AS area,
+            l.location_no AS locationNo,
+            l.row_no AS rowNo,
+            l.column_no AS columnNo,
+            l.capacity AS capacity,
+            l.used_count AS usedCount,
+            l.status AS status,
+            DATE_FORMAT(l.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(l.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM shelf_location l
+        JOIN shelf s ON s.id = l.shelf_id
+            AND s.deleted = 0
+        WHERE l.status != 4
+          AND l.used_count &lt; l.capacity
+          AND s.status = 1
+        ORDER BY l.shelf_id ASC, l.row_no ASC, l.column_no ASC
+    </select>
+
+    <!-- 占用货位：used_count+1 并按容量重算状态；条件守卫最后一个容量被并发抢占时返回 0 行 -->
+    <update id="increaseUsed">
+        UPDATE shelf_location
+        SET used_count = used_count + 1,
+            status = CASE
+                WHEN status = 4 THEN 4
+                WHEN used_count + 1 &gt;= capacity THEN 3
+                ELSE 2
+            END,
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND used_count &lt; capacity
+    </update>
+
+    <!-- 释放货位：used_count-1 并重算状态；used_count>0 守卫，返回 0 行属数据不一致须回滚 -->
+    <update id="decreaseUsed">
+        UPDATE shelf_location
+        SET used_count = used_count - 1,
+            status = CASE
+                WHEN status = 4 THEN 4
+                WHEN used_count - 1 &lt;= 0 THEN 1
+                ELSE 2
+            END,
+            update_time = #{updateTime}
+        WHERE id = #{id}
+          AND used_count &gt; 0
+    </update>
+
+    <!-- 货位使用汇总（正常货架的非停用货位） -->
+    <select id="selectUsage" resultType="com.example.station.vo.LocationUsageVO">
+        SELECT
+            IFNULL(SUM(l.capacity), 0) AS total,
+            IFNULL(SUM(l.used_count), 0) AS used
+        FROM shelf_location l
+        JOIN shelf s ON s.id = l.shelf_id
+            AND s.deleted = 0
+        WHERE s.status = 1
+          AND l.status != 4
+    </select>
+
+</mapper>

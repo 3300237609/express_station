@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.station.mapper.PickupRecordMapper">
+
+    <select id="selectByExpressId" resultType="com.example.station.entity.PickupRecord">
+        SELECT
+            id AS id,
+            express_id AS expressId,
+            user_id AS userId,
+            pickup_code AS pickupCode,
+            operator_id AS operatorId,
+            pickup_method AS pickupMethod,
+            DATE_FORMAT(pickup_time, '%Y-%m-%d %H:%i:%s') AS pickupTime,
+            remark AS remark,
+            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime
+        FROM pickup_record
+        WHERE express_id = #{expressId}
+        ORDER BY pickup_time ASC
+    </select>
+
+    <!-- 与 uk_express_id 唯一键同口径的前置查重 -->
+    <select id="countByExpressId" resultType="int">
+        SELECT COUNT(*) AS count
+        FROM pickup_record
+        WHERE express_id = #{expressId}
+    </select>
+
+    <insert id="insert" parameterType="com.example.station.entity.PickupRecord"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO pickup_record (
+            express_id,
+            user_id,
+            pickup_code,
+            operator_id,
+            pickup_method,
+            pickup_time,
+            remark,
+            create_time
+        ) VALUES (
+            #{expressId},
+            #{userId},
+            #{pickupCode},
+            #{operatorId},
+            #{pickupMethod},
+            #{pickupTime},
+            #{remark},
+            NOW()
+        )
+    </insert>
+
+    <!-- 我的取件记录：JOIN 快递单号与取件人/操作人，按取件时间倒序 -->
+    <select id="selectUserRecordList" resultType="com.example.station.vo.PickupRecordVO">
+        SELECT
+            pr.id AS id,
+            pr.express_id AS expressId,
+            e.express_no AS expressNo,
+            e.receiver_name AS receiverName,
+            pr.user_id AS userId,
+            u.username AS username,
+            pr.operator_id AS operatorId,
+            ou.real_name AS operatorName,
+            pr.pickup_code AS pickupCode,
+            pr.pickup_method AS pickupMethod,
+            DATE_FORMAT(pr.pickup_time, '%Y-%m-%d %H:%i:%s') AS pickupTime,
+            pr.remark AS remark,
+            DATE_FORMAT(pr.create_time, '%Y-%m-%d %H:%i:%s') AS createTime
+        FROM pickup_record pr
+        LEFT JOIN express e ON e.id = pr.express_id
+        LEFT JOIN sys_user u ON u.id = pr.user_id
+        LEFT JOIN sys_user ou ON ou.id = pr.operator_id
+        WHERE pr.user_id = #{userId}
+        <if test="keyword != null and keyword != ''">
+            AND e.express_no LIKE CONCAT('%', #{keyword}, '%')
+        </if>
+        ORDER BY pr.id DESC
+    </select>
+
+    <!-- 取件记录（管理员/快递员视图）：kw 匹配单号/取件码/用户（用户名或姓名），时间按取件时间过滤 -->
+    <select id="selectRecordList" resultType="com.example.station.vo.PickupRecordVO">
+        SELECT
+            pr.id AS id,
+            pr.express_id AS expressId,
+            e.express_no AS expressNo,
+            e.receiver_name AS receiverName,
+            e.receiver_phone AS receiverPhone,
+            pr.user_id AS userId,
+            COALESCE(u.real_name, u.username) AS userName,
+            u.username AS username,
+            pr.operator_id AS operatorId,
+            ou.real_name AS operatorName,
+            pr.pickup_code AS pickupCode,
+            pr.pickup_method AS pickupMethod,
+            DATE_FORMAT(pr.pickup_time, '%Y-%m-%d %H:%i:%s') AS pickupTime,
+            pr.remark AS remark,
+            DATE_FORMAT(pr.create_time, '%Y-%m-%d %H:%i:%s') AS createTime
+        FROM pickup_record pr
+        LEFT JOIN express e ON e.id = pr.express_id
+        LEFT JOIN sys_user u ON u.id = pr.user_id
+        LEFT JOIN sys_user ou ON ou.id = pr.operator_id
+        WHERE 1 = 1
+        <if test="kw != null and kw != ''">
+            AND (e.express_no LIKE CONCAT('%', #{kw}, '%')
+                OR pr.pickup_code LIKE CONCAT('%', #{kw}, '%')
+                OR u.username LIKE CONCAT('%', #{kw}, '%')
+                OR u.real_name LIKE CONCAT('%', #{kw}, '%'))
+        </if>
+        <if test="startTime != null">
+            AND pr.pickup_time &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND pr.pickup_time &lt;= #{endTime}
+        </if>
+        ORDER BY pr.pickup_time DESC
+    </select>
+
+    <!-- 统计本人经手取件数（今日/本月/累计，业绩口径：operator_id=本人） -->
+    <select id="countPickupByOperator" resultType="com.example.station.vo.PeriodCountVO">
+        SELECT
+            COALESCE(SUM(CASE WHEN pickup_time >= CURDATE() THEN 1 ELSE 0 END), 0) AS todayCount,
+            COALESCE(SUM(CASE WHEN pickup_time >= DATE_FORMAT(NOW(), '%Y-%m-01') THEN 1 ELSE 0 END), 0) AS monthCount,
+            COUNT(*) AS totalCount
+        FROM pickup_record
+        WHERE operator_id = #{userId}
+    </select>
+
+</mapper>

@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.station.mapper.OperationLogMapper">
+
+    <insert id="insert" parameterType="com.example.station.entity.OperationLog"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO operation_log (
+            user_id,
+            username,
+            role_code,
+            module,
+            operation,
+            description,
+            request_method,
+            request_url,
+            ip_address,
+            result,
+            create_time
+        ) VALUES (
+            #{userId},
+            #{username},
+            #{roleCode},
+            #{module},
+            #{operation},
+            #{description},
+            #{requestMethod},
+            #{requestUrl},
+            #{ipAddress},
+            #{result},
+            NOW()
+        )
+    </insert>
+
+    <select id="selectList" resultType="com.example.station.vo.LogVO">
+        SELECT
+            id AS id,
+            user_id AS userId,
+            username AS username,
+            role_code AS roleCode,
+            module AS module,
+            operation AS operation,
+            description AS description,
+            request_method AS requestMethod,
+            request_url AS requestUrl,
+            ip_address AS ipAddress,
+            result AS result,
+            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime
+        FROM operation_log
+        WHERE 1 = 1
+        <if test="module != null and module != ''">
+            AND module = #{module}
+        </if>
+        <if test="operation != null and operation != ''">
+            AND operation = #{operation}
+        </if>
+        <if test="result != null and result != ''">
+            AND result = #{result}
+        </if>
+        <if test="userId != null">
+            AND user_id = #{userId}
+        </if>
+        <if test="keyword != null and keyword != ''">
+            AND (username LIKE CONCAT('%', #{keyword}, '%')
+                OR description LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        ORDER BY id DESC
+    </select>
+
+    <!-- 统计本人入库业绩（今日/本月/累计）：
+         口径 = 经本人「完成入库」且 SUCCESS、快递仍存在(deleted=0)的快递，
+         三档按快递当前入库时间 storage_time 分档——与全站今日入库 countTodayInbound 同键，
+         结构上保证 个人 ≤ 全站（夹具回拨 storage_time、删单都不会产生幽灵计数）；
+         动作证据 = 操作日志 description「快递：{单号|ID}」反查快递（前缀 3 字符） -->
+    <select id="countInboundByUser" resultType="com.example.station.vo.PeriodCountVO">
+        SELECT
+            COALESCE(SUM(CASE WHEN e.storage_time >= CURDATE() THEN 1 ELSE 0 END), 0) AS todayCount,
+            COALESCE(SUM(CASE WHEN e.storage_time >= DATE_FORMAT(NOW(), '%Y-%m-01') THEN 1 ELSE 0 END), 0) AS monthCount,
+            COUNT(*) AS totalCount
+        FROM express e
+        WHERE e.deleted = 0
+            AND e.storage_time IS NOT NULL
+            AND EXISTS (
+                SELECT 1
+                FROM operation_log ol
+                WHERE ol.user_id = #{userId}
+                    AND ol.module = '快递入库'
+                    AND ol.operation = '完成入库'
+                    AND ol.result = 'SUCCESS'
+                    AND (SUBSTRING(ol.description, 4) COLLATE utf8mb4_unicode_ci = e.express_no COLLATE utf8mb4_unicode_ci
+                         OR SUBSTRING(ol.description, 4) COLLATE utf8mb4_unicode_ci = CAST(e.id AS CHAR) COLLATE utf8mb4_unicode_ci)
+            )
+    </select>
+
+</mapper>

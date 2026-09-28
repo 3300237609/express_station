@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<!-- MyBatis 全局配置 -->
+<configuration>
+    <settings>
+        <!-- 开启驼峰映射：数据库列 create_time 自动映射到实体字段 createTime -->
+        <setting name="mapUnderscoreToCamelCase" value="true"/>
+        <!-- SQL 打到控制台，开发期保留；上线前改为 SLF4J 或 NO_LOGGING -->
+        <setting name="logImpl" value="STDOUT_LOGGING"/>
+    </settings>
+</configuration>

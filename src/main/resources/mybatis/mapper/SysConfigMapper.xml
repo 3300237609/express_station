@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.station.mapper.SysConfigMapper">
+
+    <select id="selectList" resultType="com.example.station.vo.ConfigVO">
+        SELECT
+            id AS id,
+            config_key AS configKey,
+            config_value AS configValue,
+            description AS description,
+            status AS status,
+            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM sys_config
+        ORDER BY config_key ASC
+    </select>
+
+    <select id="selectById" resultType="com.example.station.vo.ConfigVO">
+        SELECT
+            id AS id,
+            config_key AS configKey,
+            config_value AS configValue,
+            description AS description,
+            status AS status,
+            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM sys_config
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectValueByKey" resultType="java.lang.String">
+        SELECT config_value AS configValue
+        FROM sys_config
+        WHERE config_key = #{configKey}
+    </select>
+
+    <!-- 查重不过滤 status，与 uk_config_key 全局唯一键口径一致 -->
+    <select id="countByKey" resultType="int">
+        SELECT COUNT(*) AS count
+        FROM sys_config
+        WHERE config_key = #{configKey}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <insert id="insert" parameterType="com.example.station.entity.SysConfig"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_config (
+            config_key,
+            config_value,
+            description,
+            status,
+            create_time,
+            update_time
+        ) VALUES (
+            #{configKey},
+            #{configValue},
+            #{description},
+            #{status},
+            NOW(),
+            NOW()
+        )
+    </insert>
+
+    <update id="update" parameterType="com.example.station.entity.SysConfig">
+        UPDATE sys_config
+        SET config_key = #{configKey},
+            config_value = #{configValue},
+            description = #{description},
+            status = #{status},
+            update_time = NOW()
+        WHERE id = #{id}
+    </update>
+
+    <delete id="delete">
+        DELETE FROM sys_config
+        WHERE id = #{id}
+    </delete>
+
+</mapper>

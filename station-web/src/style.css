@@ -1,0 +1,147 @@
+/* 全局基础样式 */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* ============ 全局主题：青绿风（与登录注册页一致） ============ */
+:root {
+  /* Element Plus 主色：按钮/链接/选中态/开关/进度条等随之变青绿 */
+  --el-color-primary: #26b6a8;
+  --el-color-primary-light-3: #5cc4b9;
+  --el-color-primary-light-5: #8bd7cf;
+  --el-color-primary-light-7: #b9e9e4;
+  --el-color-primary-light-8: #cef0ec;
+  --el-color-primary-light-9: #e7f8f6;
+  --el-color-primary-dark-2: #1d9186;
+  /* 圆角基准：按钮/输入框等统一 8px（登录注册页的 12px 由页面局部覆盖） */
+  --el-border-radius-base: 8px;
+}
+
+body {
+  font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
+  font-size: 14px;
+  color: #303133;
+  background-color: #f0f7f5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  text-decoration: none;
+}
+
+/* 页面容器：业务页面统一内边距 */
+.page-container {
+  padding: 16px;
+}
+
+/* 筛选区：查询条件 + 操作按钮横排，自动换行 */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.filter-bar .el-input,
+.filter-bar .el-select {
+  width: 200px;
+}
+
+/* 卡片容器：白底大圆角柔和阴影 */
+.card {
+  padding: 16px;
+  background-color: #fff;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(31, 60, 55, 0.06);
+}
+
+/* 表格区卡片 */
+.table-card {
+  padding: 16px;
+  background-color: #fff;
+  border-radius: 14px;
+  box-shadow: 0 4px 16px rgba(31, 60, 55, 0.06);
+}
+
+/* 分页条 */
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+/* 图表容器：宽高必须显式声明，ECharts 才能初始化 */
+.chart-box {
+  width: 100%;
+  height: 320px;
+}
+
+/* ============ Element Plus 细节微调（本文件在 EP 样式之后加载，同优先级覆盖生效） ============ */
+/* 弹窗/确认框大圆角 */
+.el-dialog {
+  border-radius: 16px;
+}
+
+.el-message-box {
+  border-radius: 16px;
+}
+
+/* 状态标签胶囊化 */
+.el-tag {
+  border-radius: 999px;
+}
+
+/* 表格：表头浅薄荷、行悬浮浅薄荷 */
+.el-table {
+  --el-table-header-bg-color: #e9f6f3;
+  --el-table-header-text-color: #374151;
+  --el-table-row-hover-bg-color: #f1faf8;
+}
+
+/* ============ 移动端适配（≤768px，配合各页面媒体查询） ============ */
+@media (max-width: 768px) {
+  /* 页面/卡片内边距收紧，多留内容空间 */
+  .page-container {
+    padding: 12px;
+  }
+
+  .card,
+  .table-card {
+    padding: 12px;
+  }
+
+  /* 筛选区输入控件收窄，便于与按钮同行或自然换行 */
+  .filter-bar .el-input,
+  .filter-bar .el-select {
+    width: 140px;
+  }
+
+  /* 分页：居中并允许换行，避免窄屏横向溢出 */
+  .pagination-bar {
+    justify-content: center;
+  }
+
+  .pagination-bar .el-pagination {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* 弹窗/确认框不超出视口（窄屏下 520px 固定宽弹窗会溢出），并上移留出操作空间 */
+  .el-dialog,
+  .el-message-box {
+    max-width: calc(100vw - 24px);
+  }
+
+  .el-dialog {
+    margin-top: 5vh;
+  }
+}

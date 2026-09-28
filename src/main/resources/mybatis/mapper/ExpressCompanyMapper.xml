@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 快递公司表 express_company 数据访问映射 -->
+<mapper namespace="com.example.station.mapper.ExpressCompanyMapper">
+
+    <!-- 公司列表查询公共条件（PageHelper 以同一 SQL 自动生成 count，列表与总数条件天然一致） -->
+    <sql id="whereCondition">
+        WHERE deleted = 0
+        <if test="keyword != null and keyword != ''">
+            AND (
+                company_name LIKE CONCAT('%', #{keyword}, '%')
+                OR company_code LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+        <if test="status != null">
+            AND status = #{status}
+        </if>
+    </sql>
+
+    <!-- 分页查询快递公司列表（关键字/状态可选筛选） -->
+    <select id="selectList" resultType="com.example.station.vo.CompanyVO">
+        SELECT
+            id AS id,
+            company_name AS companyName,
+            company_code AS companyCode,
+            contact_name AS contactName,
+            contact_phone AS contactPhone,
+            status AS status,
+            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express_company
+        <include refid="whereCondition"/>
+        ORDER BY id DESC
+    </select>
+
+    <!-- 按 ID 查询公司详情（未删除） -->
+    <select id="selectById" resultType="com.example.station.vo.CompanyVO">
+        SELECT
+            id AS id,
+            company_name AS companyName,
+            company_code AS companyCode,
+            contact_name AS contactName,
+            contact_phone AS contactPhone,
+            status AS status,
+            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express_company
+        WHERE id = #{id}
+            AND deleted = 0
+    </select>
+
+    <!-- 统计公司名称数量（新增/修改查重，修改时排除自身；不过滤 deleted，与唯一键一致） -->
+    <select id="countByCompanyName" resultType="java.lang.Long">
+        SELECT
+            COUNT(*) AS count
+        FROM express_company
+        WHERE company_name = #{companyName}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <!-- 统计公司编码数量（新增/修改查重，修改时排除自身；不过滤 deleted，与 uk_company_code 一致） -->
+    <select id="countByCompanyCode" resultType="java.lang.Long">
+        SELECT
+            COUNT(*) AS count
+        FROM express_company
+        WHERE company_code = #{companyCode}
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <!-- 统计该公司名下未删除的快递数量（删除前引用检查） -->
+    <select id="countExpressByCompanyId" resultType="java.lang.Long">
+        SELECT
+            COUNT(*) AS count
+        FROM express
+        WHERE company_id = #{companyId}
+            AND deleted = 0
+    </select>
+
+    <!-- 新增快递公司，回填自增主键 id -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id"
+            parameterType="com.example.station.entity.ExpressCompany">
+        INSERT INTO express_company (
+            company_name,
+            company_code,
+            contact_name,
+            contact_phone,
+            status,
+            deleted,
+            create_time,
+            update_time
+        ) VALUES (
+            #{companyName},
+            #{companyCode},
+            #{contactName},
+            #{contactPhone},
+            #{status},
+            #{deleted},
+            #{createTime},
+            #{updateTime}
+        )
+    </insert>
+
+    <!-- 修改快递公司可编辑字段（状态由专用接口维护） -->
+    <update id="update" parameterType="com.example.station.entity.ExpressCompany">
+        UPDATE express_company
+        SET company_name = #{companyName},
+            company_code = #{companyCode},
+            contact_name = #{contactName},
+            contact_phone = #{contactPhone},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+            AND deleted = 0
+    </update>
+
+    <!-- 启用/停用快递公司 -->
+    <update id="updateStatus">
+        UPDATE express_company
+        SET status = #{status},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+            AND deleted = 0
+    </update>
+
+    <!-- 逻辑删除快递公司 -->
+    <update id="delete">
+        UPDATE express_company
+        SET deleted = 1,
+            update_time = #{updateTime}
+        WHERE id = #{id}
+            AND deleted = 0
+    </update>
+
+    <!-- 查询启用中的公司列表（入库/寄件选择用） -->
+    <select id="selectEnabledList" resultType="com.example.station.vo.CompanyVO">
+        SELECT
+            id AS id,
+            company_name AS companyName,
+            company_code AS companyCode,
+            contact_name AS contactName,
+            contact_phone AS contactPhone,
+            status AS status,
+            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM express_company
+        WHERE status = 1
+        AND deleted = 0
+        ORDER BY id
+    </select>
+
+    <!-- 按公司聚合快递业务量（LEFT JOIN 含 0 快递的公司） -->
+    <select id="selectVolume" resultType="com.example.station.vo.CompanyVolumeVO">
+        SELECT
+            c.id AS companyId,
+            c.company_name AS companyName,
+            COUNT(e.id) AS totalCount
+        FROM express_company c
+        LEFT JOIN express e ON e.company_id = c.id
+            AND e.deleted = 0
+        WHERE c.deleted = 0
+        GROUP BY c.id, c.company_name
+        ORDER BY totalCount DESC
+    </select>
+
+</mapper>

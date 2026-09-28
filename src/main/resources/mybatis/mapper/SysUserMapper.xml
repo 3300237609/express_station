@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!-- 用户表 sys_user 数据访问映射 -->
+<mapper namespace="com.example.station.mapper.SysUserMapper">
+
+    <!-- 列表查询公共条件（PageHelper 以同一 SQL 自动生成 count，列表与总数条件天然一致） -->
+    <sql id="baseWhere">
+        WHERE u.deleted = 0
+        <if test="kw != null and kw != ''">
+            AND (
+                u.username LIKE CONCAT('%', #{kw}, '%')
+                OR u.real_name LIKE CONCAT('%', #{kw}, '%')
+                OR u.phone LIKE CONCAT('%', #{kw}, '%')
+            )
+        </if>
+        <if test="status != null">
+            AND u.status = #{status}
+        </if>
+    </sql>
+
+    <!-- 用户角色编码子查询（取首个角色，系统内用户为单角色模型） -->
+    <sql id="roleSubQuery">
+        (
+            SELECT r.role_code
+            FROM sys_user_role ur
+            JOIN sys_role r ON r.id = ur.role_id
+            WHERE ur.user_id = u.id
+            ORDER BY ur.id ASC
+            LIMIT 1
+        ) AS role
+    </sql>
+
+    <!-- 按用户名查询未删除的用户（登录用，含 password 供校验，不出响应） -->
+    <select id="selectByUsername" resultType="com.example.station.entity.SysUser">
+        SELECT
+            id AS id,
+            username AS username,
+            password AS password,
+            real_name AS realName,
+            phone AS phone,
+            email AS email,
+            avatar AS avatar,
+            status AS status,
+            create_time AS createTime,
+            update_time AS updateTime,
+            deleted AS deleted
+        FROM sys_user
+        WHERE username = #{username}
+            AND deleted = 0
+    </select>
+
+    <!-- 分页查询用户列表（可排除指定角色，用户管理页排除快递员；含角色编码） -->
+    <select id="selectList" resultType="com.example.station.vo.UserVO">
+        SELECT
+            u.id AS id,
+            u.username AS username,
+            u.real_name AS realName,
+            u.phone AS phone,
+            u.email AS email,
+            u.avatar AS avatar,
+            u.status AS status,
+            <include refid="roleSubQuery"/>
+            ,
+            DATE_FORMAT(u.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(u.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM sys_user u
+        <include refid="baseWhere"/>
+        <if test="excludeRoleCode != null and excludeRoleCode != ''">
+            AND NOT EXISTS (
+                SELECT 1
+                FROM sys_user_role ur
+                JOIN sys_role r ON r.id = ur.role_id
+                WHERE ur.user_id = u.id
+                    AND r.role_code = #{excludeRoleCode}
+            )
+        </if>
+        ORDER BY u.id DESC
+    </select>
+
+    <!-- 分页查询快递员列表（仅含指定角色账号） -->
+    <select id="selectCourierList" resultType="com.example.station.vo.CourierVO">
+        SELECT
+            u.id AS id,
+            u.username AS username,
+            u.real_name AS realName,
+            u.phone AS phone,
+            u.email AS email,
+            u.status AS status,
+            DATE_FORMAT(u.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(u.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM sys_user u
+        <include refid="baseWhere"/>
+        <if test="roleCode != null and roleCode != ''">
+            AND EXISTS (
+                SELECT 1
+                FROM sys_user_role ur
+                JOIN sys_role r ON r.id = ur.role_id
+                WHERE ur.user_id = u.id
+                    AND r.role_code = #{roleCode}
+            )
+        </if>
+        ORDER BY u.id DESC
+    </select>
+
+    <!-- 按 ID 查询用户详情（未删除，含角色编码，不出 password） -->
+    <select id="selectById" resultType="com.example.station.vo.UserVO">
+        SELECT
+            u.id AS id,
+            u.username AS username,
+            u.real_name AS realName,
+            u.phone AS phone,
+            u.email AS email,
+            u.avatar AS avatar,
+            u.status AS status,
+            <include refid="roleSubQuery"/>
+            ,
+            DATE_FORMAT(u.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+            DATE_FORMAT(u.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
+        FROM sys_user u
+        WHERE u.id = #{id}
+            AND u.deleted = 0
+    </select>
+
+    <!-- 按手机号精确匹配用户（未删除，uk_phone 唯一至多一行，入库选择收件人联动用，不出 password） -->
+    <select id="selectByPhone" resultType="com.example.station.vo.UserVO">
+        SELECT
+            u.id AS id,
+            u.username AS username,
+            u.real_name AS realName,
+            u.phone AS phone
+        FROM sys_user u
+        WHERE u.phone = #{phone}
+            AND u.deleted = 0
+    </select>
+
+    <!-- 统计用户名数量（注册/新增查重，不过滤已删除用户，与 uk_username 唯一键口径一致） -->
+    <select id="countByUsername" resultType="java.lang.Long">
+        SELECT
+            COUNT(*) AS count
+        FROM sys_user
+        WHERE username = #{username}
+    </select>
+
+    <!-- 统计手机号数量（注册/新增/修改查重，修改时排除自身） -->
+    <select id="countByPhone" resultType="java.lang.Long">
+        SELECT
+            COUNT(*) AS count
+        FROM sys_user
+        WHERE phone = #{phone}
+            AND deleted = 0
+        <if test="excludeId != null">
+            AND id != #{excludeId}
+        </if>
+    </select>
+
+    <!-- 统计有效用户数量（关联校验用，非唯一键查重，过滤已删除） -->
+    <select id="countById" resultType="java.lang.Long">
+        SELECT
+            COUNT(*) AS count
+        FROM sys_user
+        WHERE id = #{id}
+            AND deleted = 0
+    </select>
+
+    <!-- 新增用户，回填自增主键 id -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id"
+            parameterType="com.example.station.entity.SysUser">
+        INSERT INTO sys_user (
+            username,
+            password,
+            real_name,
+            phone,
+            email,
+            status,
+            deleted,
+            create_time,
+            update_time
+        ) VALUES (
+            #{username},
+            #{password},
+            #{realName},
+            #{phone},
+            #{email},
+            #{status},
+            #{deleted},
+            #{createTime},
+            #{updateTime}
+        )
+    </insert>
+
+    <!-- 修改用户可编辑字段（用户名/密码/状态由专用接口维护） -->
+    <update id="update" parameterType="com.example.station.entity.SysUser">
+        UPDATE sys_user
+        SET real_name = #{realName},
+            phone = #{phone},
+            email = #{email},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+            AND deleted = 0
+    </update>
+
+    <!-- 启用/禁用用户账号 -->
+    <update id="updateStatus">
+        UPDATE sys_user
+        SET status = #{status},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+            AND deleted = 0
+    </update>
+
+    <!-- 重置用户密码（传入 BCrypt 密文） -->
+    <update id="resetPassword">
+        UPDATE sys_user
+        SET password = #{password},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+            AND deleted = 0
+    </update>
+
+    <!-- 物理删除用户（唯一键占用原因见接口 Javadoc） -->
+    <delete id="delete">
+        DELETE FROM sys_user
+        WHERE id = #{id}
+    </delete>
+
+    <!-- 有效用户ID列表（未删除且状态正常，系统公告广播用） -->
+    <select id="selectActiveIds" resultType="java.lang.Long">
+        SELECT id
+        FROM sys_user
+        WHERE deleted = 0
+          AND status = 1
+        ORDER BY id ASC
+    </select>
+
+    <!-- 指定角色的有效用户ID列表（角色定向通知用） -->
+    <select id="selectActiveIdsByRole" resultType="java.lang.Long">
+        SELECT u.id
+        FROM sys_user u
+        JOIN sys_user_role ur ON ur.user_id = u.id
+        JOIN sys_role r ON r.id = ur.role_id
+        WHERE u.deleted = 0
+          AND u.status = 1
+          AND r.role_code = #{roleCode}
+        ORDER BY u.id ASC
+    </select>
+
+</mapper>
