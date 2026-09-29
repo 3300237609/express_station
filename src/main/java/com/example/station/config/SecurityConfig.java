@@ -77,7 +77,8 @@ public class SecurityConfig {
                                 "/user/resetPassword/**", "/courier/update").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/user/delete/**", "/courier/delete/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, "/shelf/list", "/shelf/detail/**",
-                                "/shelfLocation/list", "/shelfLocation/detail/**").hasRole("ADMIN")
+                                "/shelfLocation/list", "/shelfLocation/detail/**",
+                                "/shelfLocation/grid", "/shelfLocation/grid/pendingLocations").hasRole("ADMIN")
                         // 空闲货位与智能推荐：入库选位场景对快递员开放
                         .requestMatchers(HttpMethod.GET, "/shelfLocation/free", "/shelfLocation/recommend")
                                 .hasAnyRole("ADMIN", "COURIER")

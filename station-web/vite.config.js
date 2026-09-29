@@ -13,6 +13,8 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // 允许 cpolar 等内网穿透动态域名访问（开发期用 true 放行所有 host）
+    allowedHosts: true,
     proxy: {
       // 开发期将 /api 转发到后端 station-server（后端接口无 /api 前缀，故重写时去掉）
       '/api': {

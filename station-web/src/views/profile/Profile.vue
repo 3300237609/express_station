@@ -1,5 +1,6 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { changePasswordApi } from '@/api/auth'
 import { updateUser } from '@/api/user'
@@ -9,8 +10,10 @@ import { ElMessage } from 'element-plus'
 /**
  * 个人中心：查看/修改个人资料、修改密码
  */
+const route = useRoute()
 const authStore = useAuthStore()
-const activeTab = ref('profile')
+// 支持通过 ?tab=password 从头像下拉「修改密码」直达对应标签页
+const activeTab = ref(route.query.tab === 'password' ? 'password' : 'profile')
 
 // ==================== 个人资料 ====================
 const profileLoading = ref(false)

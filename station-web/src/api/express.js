@@ -28,6 +28,15 @@ export function detailExpress(id) {
 }
 
 /**
+ * 按快递单号精确查询（货架可视化搜索定位用，单号全局唯一）
+ * @param expressNo 快递单号
+ * @returns 快递详情 ExpressVO（含 locationId、locationNo、shelfNo 等）
+ */
+export function detailExpressByNo(expressNo) {
+  return request.get(`/express/detailByNo/${expressNo}`)
+}
+
+/**
  * 查询快递流转记录
  * @param id 快递ID
  * @returns 流转节点列表（按时间正序，节点 { time, event, detail }）

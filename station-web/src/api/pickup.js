@@ -31,3 +31,16 @@ export function confirmPickup(data) {
 export function listPickupRecord(params) {
   return request.get('/pickup/recordList', { params })
 }
+
+/**
+ * 获取当前登录人取件时间智能推荐（登录即可，无入参，固定本人口径）
+ * 后端 LLM Function Calling 分析驿站忙闲/待取/超期/货架，LLM 不可用自动降级规则引擎，前端无需区分
+ * 注意：LLM 模式可能响应稍慢，调用方需自行 loading 兜底
+ * @returns { source('LLM' | 'RULE'),
+ *            urgencyLevel('URGENT' 紧急 | 'TIGHT' 较紧 | 'NORMAL' 正常 | 'RELAXED' 宽松), urgencyHint（一句人话）,
+ *            recommendedTimeSlot（时段描述）, recommendedStart, recommendedEnd（ISO 起止）, reason（主推荐理由）,
+ *            context{}（数据摘要） }
+ */
+export function getPickupRecommendation() {
+  return request.get('/pickup/recommendation', { timeout: 120000 })
+}

@@ -135,6 +135,7 @@
             row_no = #{rowNo},
             column_no = #{columnNo},
             capacity = #{capacity},
+            status = #{status},
             update_time = #{updateTime}
         WHERE id = #{id}
     </update>

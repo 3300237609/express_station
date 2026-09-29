@@ -72,6 +72,18 @@ public class ExpressController {
     }
 
     /**
+     * 按快递单号精确查询（单号全局唯一，货架可视化搜索定位用）
+     * 请求方式：GET
+     * 请求路径：/express/detailByNo/{expressNo}
+     * @param expressNo 快递单号
+     * @return 快递详情（含 locationId、locationNo、shelfNo 等）
+     */
+    @GetMapping("/detailByNo/{expressNo}")
+    public R detailByNo(@PathVariable String expressNo) {
+        return expressService.detailByExpressNo(expressNo);
+    }
+
+    /**
      * 查询快递流转记录
      * @param id 快递ID
      * @return 流转节点列表（创建/到达/入库/异常/取件，按时间正序）

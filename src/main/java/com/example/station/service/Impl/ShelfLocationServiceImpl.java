@@ -109,6 +109,7 @@ public class ShelfLocationServiceImpl implements ShelfLocationService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public R update(ShelfLocationDTO dto) {
         // 1. 主键必填与兜底空值校验
         if (dto.getId() == null) {
@@ -142,16 +143,37 @@ public class ShelfLocationServiceImpl implements ShelfLocationService {
         if (shelfLocationMapper.countByShelfIdRowCol(dto.getShelfId(), dto.getRowNo(), dto.getColumnNo(), dto.getId()) > 0) {
             return R.error("该货架已存在相同行列的货位！");
         }
-        // 7. 仅更新基础信息（不改所属货架与系统维护字段）
+        // 7. 更新基础信息 + 自动重算动态状态（停用状态由管理员手动控制，不在此覆盖）
+        LocalDateTime now = LocalDateTime.now();
         ShelfLocation location = new ShelfLocation();
         location.setId(dto.getId());
         location.setLocationNo(locationNo);
         location.setRowNo(dto.getRowNo());
         location.setColumnNo(dto.getColumnNo());
         location.setCapacity(dto.getCapacity());
-        location.setUpdateTime(LocalDateTime.now());
+        location.setUpdateTime(now);
+        // 扩容/缩容后，根据 used_count 与新 capacity 自动推算 status
+        // status=4(停用) 为人工设置，跳过重算
+        Integer newStatus = current.getStatus() != null && current.getStatus() == 4
+                ? 4
+                : computeStatus(current.getUsedCount(), dto.getCapacity());
+        location.setStatus(newStatus);
         shelfLocationMapper.update(location);
         return R.success("修改成功！");
+    }
+
+    /**
+     * 根据已用数量与容量推算货位动态状态
+     *
+     * @param used    已使用数量
+     * @param capacity 总容量
+     * @return 1=空闲 / 2=部分占用 / 3=已满
+     */
+    private int computeStatus(Integer used, Integer capacity) {
+        int u = used == null ? 0 : used;
+        if (u == 0) return 1;           // 空闲
+        if (u >= capacity) return 3;    // 已满
+        return 2;                        // 部分占用
     }
 
     @Override
@@ -193,5 +215,16 @@ public class ShelfLocationServiceImpl implements ShelfLocationService {
         // 3. 更新状态（管理员手动修正）
         shelfLocationMapper.updateStatus(id, status, LocalDateTime.now());
         return R.success("状态修改成功！");
+    }
+
+    @Override
+    public R gridFull(Long shelfId) {
+        // shelfId 可空：空则查全部货架，非空则校验货架存在
+        if (shelfId != null && shelfMapper.selectById(shelfId) == null) {
+            return R.error("货架不存在！");
+        }
+        // 直接查全量（不调 PageHelper），用于 SVG 网格渲染
+        List<ShelfLocationVO> list = shelfLocationMapper.selectList(shelfId, null);
+        return R.success(list);
     }
 }

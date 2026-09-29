@@ -49,7 +49,7 @@ const routes = [
         children: [
           {
             path: '',
-            // 默认落地按角色：管理员进快递列表（仅 ADMIN 路由），快递员/普通用户进我的快递（避免点父菜单落 403）
+            // 默认落地按角色：管理员进快递列表，快递员/普通用户进我的快递（避免点父菜单落 403）
             redirect: () => ({ path: useAuthStore().hasRole(['ADMIN']) ? '/express/list' : '/express/my' })
           },
           {
@@ -115,6 +115,12 @@ const routes = [
             name: 'LocationList',
             component: () => import('@/views/shelf/LocationList.vue'),
             meta: { title: '货位管理', roles: ['ADMIN'] }
+          },
+          {
+            path: 'visual',
+            name: 'ShelfVisualization',
+            component: () => import('@/views/shelf/ShelfVisualization.vue'),
+            meta: { title: '货架可视化', roles: ['ADMIN'] }
           }
         ]
       },

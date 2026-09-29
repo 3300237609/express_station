@@ -3,6 +3,7 @@ package com.example.station.controller;
 import com.example.station.annotation.OperationLog;
 import com.example.station.common.R;
 import com.example.station.dto.ShelfLocationDTO;
+import com.example.station.service.ExpressService;
 import com.example.station.service.ShelfLocationService;
 import com.example.station.service.ShelfRecommendService;
 import jakarta.validation.Valid;
@@ -18,10 +19,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
-
 /**
  * 货位管理接口
  * 管理员维护驿站货位：分页列表、详情、空闲查询、新增、修改、删除、状态修正
+ * 货架可视化：grid 全量货位 + pendingLocations 未取件货位
  */
 @RestController
 @RequestMapping("/shelfLocation")
@@ -33,6 +34,9 @@ public class ShelfLocationController {
 
     /** 智能货位推荐业务层 */
     private final ShelfRecommendService shelfRecommendService;
+
+    /** 快递业务层（货架可视化高亮未取件货位） */
+    private final ExpressService expressService;
 
     /**
      * 分页条件查询货位列表
@@ -135,5 +139,29 @@ public class ShelfLocationController {
     @PutMapping("/updateStatus/{id}")
     public R updateStatus(@PathVariable Long id, @RequestParam Integer status) {
         return shelfLocationService.updateStatus(id, status);
+    }
+
+    // ==================== 货架可视化接口（管理员） ====================
+
+    /**
+     * 查询货位（2D 网格渲染用，不分页）
+     * 请求路径：GET /shelfLocation/grid?shelfId=1  （可不传 shelfId，查全部货架）
+     * @param shelfId 货架ID，可空
+     * @return 货位列表（含 shelfId/shelfNo/area/rowNo/columnNo/status/capacity/usedCount）
+     */
+    @GetMapping("/grid")
+    public R grid(@RequestParam(required = false) Long shelfId) {
+        return shelfLocationService.gridFull(shelfId);
+    }
+
+    /**
+     * 查询有未取件快递的货位ID集合（用于前端高亮）
+     * 请求路径：GET /shelfLocation/grid/pendingLocations?shelfId=1  （可不传 shelfId，查全部）
+     * @param shelfId 货架ID，可空
+     * @return 有未取件快递的 location_id 列表（去重）
+     */
+    @GetMapping("/grid/pendingLocations")
+    public R pendingLocations(@RequestParam(required = false) Long shelfId) {
+        return expressService.getPendingLocationIdsByShelfId(shelfId);
     }
 }

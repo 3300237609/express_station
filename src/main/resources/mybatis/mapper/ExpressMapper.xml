@@ -506,4 +506,42 @@
         ORDER BY DATE_FORMAT(pickup_time, '%Y-%m-%d') ASC
     </select>
 
+    <!-- 按小时聚合取件分布（最近 N 天） -->
+    <select id="selectHourlyPickupDistribution" resultType="map">
+        SELECT HOUR(pickup_time) AS hour,
+               COUNT(*) AS count
+        FROM express
+        WHERE deleted = 0
+          AND pickup_time IS NOT NULL
+          AND DATE(pickup_time) >= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+        GROUP BY HOUR(pickup_time)
+        ORDER BY hour ASC
+    </select>
+
+    <!-- 按星期 × 小时聚合取件分布（最近 N 天） -->
+    <select id="selectWeekdayHourPickupDistribution" resultType="map">
+        SELECT DAYOFWEEK(pickup_time) AS weekday,
+               HOUR(pickup_time)     AS hour,
+               COUNT(*)              AS count
+        FROM express
+        WHERE deleted = 0
+          AND pickup_time IS NOT NULL
+          AND DATE(pickup_time) >= DATE_SUB(CURDATE(), INTERVAL #{days} DAY)
+        GROUP BY DAYOFWEEK(pickup_time), HOUR(pickup_time)
+        ORDER BY weekday ASC, hour ASC
+    </select>
+
+    <!-- 查询有未取件快递的 location_id 集合（去重）；shelfId 可空 -->
+    <select id="selectPendingLocationIdsByShelfId" resultType="long">
+        SELECT DISTINCT e.location_id
+        FROM express e
+        INNER JOIN shelf_location l ON l.id = e.location_id
+        WHERE e.deleted = 0
+          AND e.pickup_time IS NULL
+          AND e.location_id IS NOT NULL
+        <if test="shelfId != null">
+          AND l.shelf_id = #{shelfId}
+        </if>
+    </select>
+
 </mapper>

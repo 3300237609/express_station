@@ -39,6 +39,13 @@ public interface ExpressService {
     R detail(Long id);
 
     /**
+     * 按快递单号精确查询（单号全局唯一，货架可视化搜索定位用）
+     * @param expressNo 快递单号
+     * @return 快递详情（含 locationId、locationNo）
+     */
+    R detailByExpressNo(String expressNo);
+
+    /**
      * 查询快递流转记录（创建/到达/入库/异常/取件时间线，按时间正序）
      * @param id 快递ID
      * @return 流转节点列表
@@ -104,4 +111,11 @@ public interface ExpressService {
      * @return 分页快递列表，附 total 总条数
      */
     R myList(String keyword, String status, Integer pageNum, Integer pageSize);
+
+    /**
+     * 查询有未取件快递的货位ID集合（用于货架可视化高亮）
+     * @param shelfId 货架ID，可空（为空则查全部货架）
+     * @return location_id 列表（去重）
+     */
+    R getPendingLocationIdsByShelfId(Long shelfId);
 }

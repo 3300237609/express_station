@@ -42,7 +42,7 @@ spring:
   ai:
     openai:
       api-key: ${OPENAI_API_KEY:}
-      base-url: ${LLM_API_BASE:https://dashscope.aliyuncs.com/compatible-mode/v1}
+      base-url: ${LLM_API_BASE:https://dashscope.aliyuncs.com/compatible-mode}
       chat:
         options:
           model: qwen3.7-flash

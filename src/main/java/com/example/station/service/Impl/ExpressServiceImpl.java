@@ -105,6 +105,20 @@ public class ExpressServiceImpl implements ExpressService {
     }
 
     @Override
+    public R detailByExpressNo(String expressNo) {
+        // 1. 单号必填
+        if (expressNo == null || expressNo.trim().isEmpty()) {
+            return R.error("快递单号不能为空！");
+        }
+        // 2. 精确查询（全局唯一）
+        ExpressVO vo = expressMapper.selectByExpressNo(expressNo.trim());
+        if (vo == null) {
+            return R.error("快递不存在！");
+        }
+        return R.success(vo);
+    }
+
+    @Override
     public R flow(Long id) {
         // 1. 主键必填与存在性校验（取基础时间轴）
         if (id == null) {
@@ -471,6 +485,12 @@ public class ExpressServiceImpl implements ExpressService {
      */
     private String formatTime(LocalDateTime time) {
         return time != null ? FLOW_TIME_FORMATTER.format(time) : null;
+    }
+
+    @Override
+    public R getPendingLocationIdsByShelfId(Long shelfId) {
+        List<Long> ids = expressMapper.selectPendingLocationIdsByShelfId(shelfId);
+        return R.success(ids);
     }
 
     /**

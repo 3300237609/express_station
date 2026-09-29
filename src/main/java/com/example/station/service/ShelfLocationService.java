@@ -64,4 +64,11 @@ public interface ShelfLocationService {
      * @return 状态修改结果
      */
     R updateStatus(Long id, Integer status);
+
+    /**
+     * 查询货位（用于 2D 可视化网格渲染，不分页）
+     * @param shelfId 货架ID，可空（为空则查全部货架）
+     * @return 货位列表（含 rowNo、columnNo、status、capacity、usedCount、shelfId、shelfNo、area）
+     */
+    R gridFull(Long shelfId);
 }

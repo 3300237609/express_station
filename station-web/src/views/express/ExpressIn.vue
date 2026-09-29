@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import { inboundAdd } from '@/api/inbound'
 import { recommendLocation } from '@/api/shelf'
 import { listCompanyOptions } from '@/api/company'
@@ -15,6 +16,7 @@ import { ElMessage } from 'element-plus'
  * 未命中按普通收件登记（receiverUserId 置 null）
  */
 const router = useRouter()
+const authStore = useAuthStore()
 const loading = ref(false)
 const companyOptions = ref([])
 
@@ -373,7 +375,9 @@ onMounted(async () => {
         </template>
       </el-result>
       <template #footer>
-        <el-button @click="router.push('/express/list')">查看快递列表</el-button>
+        <el-button @click="router.push(authStore.hasRole(['ADMIN']) ? '/express/list' : '/express/my')">
+          {{ authStore.hasRole(['ADMIN']) ? '查看快递列表' : '查看我的快递' }}
+        </el-button>
         <el-button type="primary" @click="resetAll">继续入库下一单</el-button>
       </template>
     </el-dialog>

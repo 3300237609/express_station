@@ -28,6 +28,7 @@ const quickMenus = computed(() => {
     { title: '我的快递', path: '/express/my', icon: 'TakeawayBox', color: '#409eff', roles: ['USER', 'COURIER'] },
     { title: '取件码验证', path: '/pickup/verify', icon: 'Key', color: '#e6a23c', roles: ['ADMIN', 'COURIER', 'USER'] },
     { title: '货架货位', path: '/shelf/list', icon: 'Grid', color: '#909399', roles: ['ADMIN'] },
+    { title: '货架可视化', path: '/shelf/visual', icon: 'DataBoard', color: '#5b8ff9', roles: ['ADMIN'] },
     { title: '超期快递', path: '/overdue', icon: 'AlarmClock', color: '#f56c6c', roles: ['ADMIN'] },
     { title: '异常件', path: '/exception', icon: 'Warning', color: '#f56c6c', roles: ['ADMIN', 'COURIER'] },
     { title: '数据统计', path: '/statistics', icon: 'DataLine', color: '#0eb06f', roles: ['ADMIN'] },
@@ -511,4 +512,5 @@ onMounted(loadDashboard)
     font-size: 12px;
   }
 }
+
 </style>

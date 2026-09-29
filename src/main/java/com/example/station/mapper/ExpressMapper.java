@@ -249,4 +249,11 @@ public interface ExpressMapper {
      * @return 每行：weekday（1=周一…7=周日）、hour（0~23）、count
      */
     List<java.util.Map<String, Object>> selectWeekdayHourPickupDistribution(@Param("days") int days);
+
+    /**
+     * 查询有未取件快递的货位ID集合（去重）
+     * @param shelfId 货架ID，可空（为空则查全部货架）
+     * @return 有未取件快递的 location_id 列表（去重）
+     */
+    List<Long> selectPendingLocationIdsByShelfId(@Param("shelfId") Long shelfId);
 }

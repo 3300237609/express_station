@@ -91,7 +91,7 @@ export function listFreeLocation(shelfId) {
  *             capacity, usedCount, remaining, status, score, reason }]（评分降序）
  */
 export function recommendLocation(params) {
-  return request.get('/shelfLocation/recommend', { params })
+  return request.get('/shelfLocation/recommend', { params, timeout: 60000 })
 }
 
 /**
@@ -125,4 +125,24 @@ export function deleteLocation(id) {
  */
 export function updateLocationStatus(id, status) {
   return request.put(`/shelfLocation/updateStatus/${id}`, null, { params: { status } })
+}
+
+// ==================== 货架可视化 2D 网格接口（管理员） ====================
+
+/**
+ * 查询某货架下全部货位（SVG 网格渲染用，不分页）
+ * @param shelfId 货架ID
+ * @returns 全量货位列表 [{ id, rowNo, columnNo, locationNo, status, capacity, usedCount, shelfNo, area }]
+ */
+export function gridFull(shelfId) {
+  return request.get('/shelfLocation/grid', { params: { shelfId } })
+}
+
+/**
+ * 查询某货架下有未取件快递的货位ID集合（用于 SVG 高亮）
+ * @param shelfId 货架ID
+ * @returns location_id 数组（去重）
+ */
+export function gridPendingLocations(shelfId) {
+  return request.get('/shelfLocation/grid/pendingLocations', { params: { shelfId } })
 }
