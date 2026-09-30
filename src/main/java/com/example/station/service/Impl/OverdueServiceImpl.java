@@ -4,6 +4,7 @@ import com.example.station.common.R;
 import com.example.station.annotation.constant.ConfigConstants;
 import com.example.station.annotation.constant.NotificationConstants;
 import com.example.station.mapper.ExpressMapper;
+import com.example.station.service.ExpressCacheService;
 import com.example.station.service.NotificationService;
 import com.example.station.service.OverdueService;
 import com.example.station.service.SysConfigService;
@@ -31,6 +32,7 @@ public class OverdueServiceImpl implements OverdueService {
     private final ExpressMapper expressMapper;
     private final NotificationService notificationService;
     private final SysConfigService sysConfigService;
+    private final ExpressCacheService expressCache;
 
     @Override
     public R list(String keyword, Integer pageNum, Integer pageSize) {
@@ -91,6 +93,8 @@ public class OverdueServiceImpl implements OverdueService {
                 continue;
             }
             count++;
+            // 超期标记已变更，失效该快递缓存
+            expressCache.evictExpress(candidate.getId(), candidate.getExpressNo());
             // 1) 收件用户（未关联收件用户时 send 内部跳过）
             notificationService.send(candidate.getReceiverUserId(), candidate.getId(), "快递超期通知",
                     "您的快递（单号 " + candidate.getExpressNo() + "）已超期（入库时间："

@@ -8,6 +8,7 @@ import com.example.station.entity.Express;
 import com.example.station.mapper.ExpressMapper;
 import com.example.station.mapper.ShelfLocationMapper;
 import com.example.station.mapper.ShelfMapper;
+import com.example.station.service.ExpressCacheService;
 import com.example.station.service.ExpressService;
 import com.example.station.service.InboundService;
 import com.example.station.service.NotificationService;
@@ -37,6 +38,7 @@ public class InboundServiceImpl implements InboundService {
     private final ShelfMapper shelfMapper;
     private final ExpressService expressService;
     private final NotificationService notificationService;
+    private final ExpressCacheService expressCache;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -149,6 +151,9 @@ public class InboundServiceImpl implements InboundService {
         }
         log.info("【入库】完成入库：expressId={}，locationId={}，shelfId={}",
                 expressId, location.getId(), location.getShelfId());
+        if (vo != null) {
+            expressCache.evictExpress(vo.getId(), vo.getExpressNo());
+        }
         return R.success(vo);
     }
 

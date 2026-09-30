@@ -49,6 +49,17 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- 缓存：Spring Data Redis（Lettuce），快递信息 Cache-Aside -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <!-- Lettuce 连接池依赖（spring-data-redis 不传递引入） -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-pool2</artifactId>
+        </dependency>
+
         <!-- 安全：Spring Security + JWT（按《架构设计》选型） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

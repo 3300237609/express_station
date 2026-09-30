@@ -37,6 +37,21 @@ spring:
       test-on-borrow: false
       test-on-return: false
 
+  # ---------------- Redis（快递信息缓存；不可用时自动降级直查数据库）----------------
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: 0
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 1
+          max-wait: 3000ms
+
   # ---------------- Spring AI 1.1.8 GA / OpenAI Starter ----------------
   # API Key 优先读 OPENAI_API_KEY（百炼默认变量名），回退 LLM_API_KEY，都没配则降级规则引擎
   ai:

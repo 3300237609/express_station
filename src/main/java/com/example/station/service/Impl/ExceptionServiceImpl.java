@@ -10,6 +10,7 @@ import com.example.station.entity.ExpressException;
 import com.example.station.mapper.ExpressExceptionMapper;
 import com.example.station.mapper.ExpressMapper;
 import com.example.station.mapper.SysUserMapper;
+import com.example.station.service.ExpressCacheService;
 import com.example.station.service.ExceptionService;
 import com.example.station.service.NotificationService;
 import com.example.station.utils.SecurityUtils;
@@ -40,6 +41,7 @@ public class ExceptionServiceImpl implements ExceptionService {
     private final ExpressMapper expressMapper;
     private final SysUserMapper sysUserMapper;
     private final NotificationService notificationService;
+    private final ExpressCacheService expressCache;
 
     @Override
     public R list(Long expressId, String exceptionType, String handleStatus, Long reporterId, String keyword,
@@ -134,6 +136,7 @@ public class ExceptionServiceImpl implements ExceptionService {
                         + "，描述：" + dto.getDescription().trim() + "，请及时处理。",
                 NotificationConstants.TYPE_EXCEPTION_NOTICE);
         log.info("【异常】登记成功：expressId={}，reporterId={}，type={}", express.getId(), reporterId, type);
+        expressCache.evictExpress(express.getId(), express.getExpressNo());
         return R.success("异常登记成功！");
     }
 
@@ -179,6 +182,10 @@ public class ExceptionServiceImpl implements ExceptionService {
                 notificationService.send(express.getReceiverUserId(), express.getId(), "异常件处理完成",
                         "您的快递（单号 " + express.getExpressNo() + "）异常已处理，处理结果：" + remark + "。",
                         NotificationConstants.TYPE_EXCEPTION_NOTICE);
+            }
+            if (express != null) {
+                // 终态处理可能恢复快递状态，失效该快递全部缓存
+                expressCache.evictExpress(express.getId(), express.getExpressNo());
             }
         }
         log.info("【异常】处理成功：id={}，handlerId={}，status={}", dto.getId(), handlerId, status);

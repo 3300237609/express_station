@@ -16,6 +16,7 @@ import com.example.station.mapper.PickupRecordMapper;
 import com.example.station.mapper.ShelfLocationMapper;
 import com.example.station.mapper.ShelfMapper;
 import com.example.station.mapper.SysUserMapper;
+import com.example.station.service.ExpressCacheService;
 import com.example.station.service.ExpressService;
 import com.example.station.service.NotificationService;
 import com.example.station.utils.SecurityUtils;
@@ -55,6 +56,7 @@ public class ExpressServiceImpl implements ExpressService {
     private final ShelfLocationMapper shelfLocationMapper;
     private final ShelfMapper shelfMapper;
     private final NotificationService notificationService;
+    private final ExpressCacheService expressCache;
 
     /** 取件码随机源 */
     private final SecureRandom random = new SecureRandom();
@@ -82,11 +84,22 @@ public class ExpressServiceImpl implements ExpressService {
         // 3. 日期范围转时间范围（起始日 00:00:00 至 结束日 23:59:59）
         LocalDateTime start = arrivalTimeStart != null ? arrivalTimeStart.atStartOfDay() : null;
         LocalDateTime end = arrivalTimeEnd != null ? arrivalTimeEnd.atTime(23, 59, 59) : null;
-        // 4. 分页查询
+        // 4. 先查 Redis 缓存（命中则跳过分页查询）
+        String cacheKey = expressCache.listKey(keywordTrim, pickupCodeTrim, receiverNameTrim,
+                receiverPhoneTrim, companyId, statusTrim,
+                start != null ? start.toString() : null, end != null ? end.toString() : null,
+                pageNum, pageSize);
+        ExpressCacheService.CachedPage cached = expressCache.getPage(cacheKey);
+        if (cached != null) {
+            return R.success(cached.list()).add("total", cached.total());
+        }
+        // 5. 分页查询
         PageHelper.startPage(pageNum, pageSize);
         List<ExpressVO> list = expressMapper.selectList(keywordTrim, pickupCodeTrim,
                 receiverNameTrim, receiverPhoneTrim, companyId, statusTrim, start, end);
         PageInfo<ExpressVO> pageInfo = new PageInfo<>(list);
+        // 6. 写入缓存（列表 + 总条数，短 TTL）
+        expressCache.putPage(cacheKey, list, pageInfo.getTotal());
         return R.success(list).add("total", pageInfo.getTotal());
     }
 
@@ -96,11 +109,19 @@ public class ExpressServiceImpl implements ExpressService {
         if (id == null) {
             return R.error("快递ID不能为空！");
         }
-        // 2. 存在性校验
+        // 2. 先查 Redis 缓存
+        ExpressVO cached = expressCache.getDetail(id);
+        if (cached != null) {
+            return R.success(cached);
+        }
+        // 3. 存在性校验
         ExpressVO vo = expressMapper.selectById(id);
         if (vo == null) {
             return R.error("快递不存在！");
         }
+        // 4. 回填缓存（主键 + 单号两个维度）
+        expressCache.putDetail(vo);
+        expressCache.putByExpressNo(vo);
         return R.success(vo);
     }
 
@@ -110,11 +131,20 @@ public class ExpressServiceImpl implements ExpressService {
         if (expressNo == null || expressNo.trim().isEmpty()) {
             return R.error("快递单号不能为空！");
         }
-        // 2. 精确查询（全局唯一）
-        ExpressVO vo = expressMapper.selectByExpressNo(expressNo.trim());
+        // 2. 先查 Redis 缓存（单号维度）
+        String no = expressNo.trim();
+        ExpressVO cached = expressCache.getByExpressNo(no);
+        if (cached != null) {
+            return R.success(cached);
+        }
+        // 3. 精确查询（全局唯一）
+        ExpressVO vo = expressMapper.selectByExpressNo(no);
         if (vo == null) {
             return R.error("快递不存在！");
         }
+        // 4. 回填两个维度缓存
+        expressCache.putByExpressNo(vo);
+        expressCache.putDetail(vo);
         return R.success(vo);
     }
 
@@ -208,6 +238,8 @@ public class ExpressServiceImpl implements ExpressService {
         express.setCreateTime(now);
         express.setUpdateTime(now);
         expressMapper.insert(express);
+        // 新件无详情缓存，仅需清理列表缓存
+        expressCache.evictExpress(express.getId(), expressNo);
         log.info("【快递】新增成功：id={}，expressNo={}，pickupCode={}", express.getId(), expressNo, pickupCode);
         return R.success("新增成功！");
     }
@@ -260,6 +292,7 @@ public class ExpressServiceImpl implements ExpressService {
         express.setRemark(dto.getRemark());
         express.setUpdateTime(LocalDateTime.now());
         expressMapper.update(express);
+        expressCache.evictExpress(dto.getId(), expressNo);
         return R.success("修改成功！");
     }
 
@@ -286,6 +319,7 @@ public class ExpressServiceImpl implements ExpressService {
         }
         // 4. 逻辑删除
         expressMapper.delete(id, LocalDateTime.now());
+        expressCache.evictExpress(id, current.getExpressNo());
         log.info("【快递】删除成功：id={}，expressNo={}", id, current.getExpressNo());
         return R.success("删除成功！");
     }
@@ -310,6 +344,7 @@ public class ExpressServiceImpl implements ExpressService {
         }
         // 4. 仅更新状态（业务时间戳由入库/取件流程维护，本接口不做修正写入）
         expressMapper.updateStatus(id, status, LocalDateTime.now());
+        expressCache.evictExpress(id, current.getExpressNo());
         return R.success("状态修改成功！");
     }
 
@@ -391,6 +426,7 @@ public class ExpressServiceImpl implements ExpressService {
                 NotificationConstants.TYPE_PICKUP_NOTICE);
         log.info("【快递】货位调整成功：expressId={}，{} → {}",
                 current.getId(), oldLocation.getLocationNo(), location.getLocationNo());
+        expressCache.evictExpress(current.getId(), current.getExpressNo());
         return R.success("货位调整成功！");
     }
 
@@ -448,7 +484,13 @@ public class ExpressServiceImpl implements ExpressService {
         if (me == null) {
             return R.error("用户不存在！");
         }
-        // 3. 分视角分页查询：快递员看本人经手入库的快递，其余角色看收件人视角
+        // 3. 先查 Redis 缓存
+        String cacheKey = expressCache.myListKey(userId, keywordTrim, statusTrim, pageNum, pageSize);
+        ExpressCacheService.CachedPage cached = expressCache.getPage(cacheKey);
+        if (cached != null) {
+            return R.success(cached.list()).add("total", cached.total());
+        }
+        // 4. 分视角分页查询：快递员看本人经手入库的快递，其余角色看收件人视角
         PageHelper.startPage(pageNum, pageSize);
         List<ExpressVO> list;
         if (RoleConstants.COURIER.equals(SecurityUtils.getCurrentRole())) {
@@ -457,6 +499,7 @@ public class ExpressServiceImpl implements ExpressService {
             list = expressMapper.selectReceiverList(userId, me.getPhone(), keywordTrim, statusTrim);
         }
         PageInfo<ExpressVO> pageInfo = new PageInfo<>(list);
+        expressCache.putPage(cacheKey, list, pageInfo.getTotal());
         return R.success(list).add("total", pageInfo.getTotal());
     }
 
