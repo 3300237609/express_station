@@ -53,7 +53,6 @@ spring:
           max-wait: 3000ms
 
   # ---------------- Spring AI 1.1.8 GA / OpenAI Starter ----------------
-  # API Key 优先读 OPENAI_API_KEY（百炼默认变量名），回退 LLM_API_KEY，都没配则降级规则引擎
   ai:
     openai:
       api-key: ${OPENAI_API_KEY:}
