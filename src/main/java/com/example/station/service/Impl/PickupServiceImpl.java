@@ -11,6 +11,7 @@ import com.example.station.mapper.PickupRecordMapper;
 import com.example.station.mapper.ShelfLocationMapper;
 import com.example.station.mapper.ShelfMapper;
 import com.example.station.service.ExpressCacheService;
+import com.example.station.service.CommonCacheService;
 import com.example.station.service.NotificationService;
 import com.example.station.service.PickupService;
 import com.example.station.utils.SecurityUtils;
@@ -48,6 +49,7 @@ public class PickupServiceImpl implements PickupService {
     private final PickupRecordMapper pickupRecordMapper;
     private final NotificationService notificationService;
     private final ExpressCacheService expressCache;
+    private final CommonCacheService commonCache;
 
     /**
      * 取件校验结果（快递信息与错误文案二选一）
@@ -134,6 +136,8 @@ public class PickupServiceImpl implements PickupService {
         log.info("【取件】出库成功：expressId={}，expressNo={}，method={}",
                 vo.getId(), vo.getExpressNo(), pickupMethod);
         expressCache.evictExpress(vo.getId(), vo.getExpressNo());
+        // 取件释放了货位、刷新了货架计数，缓存提交后同步清
+        commonCache.evictPrefixAfterCommit(CommonCacheService.SHELF_PREFIX, CommonCacheService.LOCATION_PREFIX);
         return R.success("取件成功！");
     }
 

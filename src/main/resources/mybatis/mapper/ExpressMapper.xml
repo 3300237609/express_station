@@ -416,7 +416,7 @@
         ORDER BY e.id ASC
     </select>
 
-    <!-- 超期列表：已标记超期且仍待取，超期时长按配置时长计算 -->
+    <!-- 超期列表：已标记超期且仍待取，且按现行阈值仍处于超期状态（阈值放宽后自动收敛，超期时长不会出现负值） -->
     <select id="selectOverdueList" resultType="com.example.station.vo.OverdueVO">
         SELECT
             e.id AS id,
@@ -437,6 +437,7 @@
         WHERE e.deleted = 0
           AND e.status = 'WAITING_PICKUP'
           AND e.overdue_flag = 1
+          AND e.storage_time &lt; DATE_SUB(NOW(), INTERVAL #{hours} HOUR)
         <if test="keyword != null and keyword != ''">
             AND (e.express_no LIKE CONCAT('%', #{keyword}, '%')
                 OR e.receiver_name LIKE CONCAT('%', #{keyword}, '%')

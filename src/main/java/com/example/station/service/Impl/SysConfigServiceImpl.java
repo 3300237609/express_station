@@ -4,8 +4,10 @@ import com.example.station.common.R;
 import com.example.station.dto.ConfigDTO;
 import com.example.station.entity.SysConfig;
 import com.example.station.mapper.SysConfigMapper;
+import com.example.station.service.CommonCacheService;
 import com.example.station.service.SysConfigService;
 import com.example.station.vo.ConfigVO;
+import com.fasterxml.jackson.core.type.TypeReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,10 +25,17 @@ import java.util.List;
 public class SysConfigServiceImpl implements SysConfigService {
 
     private final SysConfigMapper sysConfigMapper;
+    private final CommonCacheService cache;
 
     @Override
     public R list() {
-        List<ConfigVO> list = sysConfigMapper.selectList();
+        // 0. 先查缓存（配置变化少，长 TTL；写配置时统一清）
+        List<ConfigVO> list = cache.get(cache.configListKey(), new TypeReference<List<ConfigVO>>() {
+        });
+        if (list == null) {
+            list = sysConfigMapper.selectList();
+            cache.put(cache.configListKey(), list, CommonCacheService.TTL_LONG);
+        }
         return R.success(list);
     }
 
@@ -54,6 +63,7 @@ public class SysConfigServiceImpl implements SysConfigService {
         config.setUpdateTime(LocalDateTime.now());
         sysConfigMapper.insert(config);
         log.info("【配置】新增成功：id={}，configKey={}", config.getId(), configKey);
+        cache.evictPrefixAfterCommit(CommonCacheService.CONFIG_PREFIX);
         return R.success("新增成功！");
     }
 
@@ -89,6 +99,7 @@ public class SysConfigServiceImpl implements SysConfigService {
         config.setUpdateTime(LocalDateTime.now());
         sysConfigMapper.update(config);
         log.info("【配置】修改成功：id={}，configKey={}", dto.getId(), configKey);
+        cache.evictPrefixAfterCommit(CommonCacheService.CONFIG_PREFIX);
         return R.success("修改成功！");
     }
 
@@ -105,6 +116,7 @@ public class SysConfigServiceImpl implements SysConfigService {
         // 2. 物理删除（表无逻辑删除列，删除即释放配置键）
         sysConfigMapper.delete(id);
         log.info("【配置】删除成功：id={}，configKey={}", id, current.getConfigKey());
+        cache.evictPrefixAfterCommit(CommonCacheService.CONFIG_PREFIX);
         return R.success("删除成功！");
     }
 
@@ -113,7 +125,17 @@ public class SysConfigServiceImpl implements SysConfigService {
         if (!StringUtils.hasText(configKey)) {
             return null;
         }
-        return sysConfigMapper.selectValueByKey(configKey.trim());
+        String key = configKey.trim();
+        // 0. 先查缓存（高频调用，如通知开关；写配置时统一清）
+        String cached = cache.get(cache.configValueKey(key), String.class);
+        if (cached != null) {
+            return cached;
+        }
+        String value = sysConfigMapper.selectValueByKey(key);
+        if (value != null) {
+            cache.put(cache.configValueKey(key), value, CommonCacheService.TTL_LONG);
+        }
+        return value;
     }
 
     @Override

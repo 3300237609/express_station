@@ -9,9 +9,11 @@ import com.example.station.entity.Notification;
 import com.example.station.mapper.NotificationMapper;
 import com.example.station.mapper.SysUserMapper;
 import com.example.station.service.NotificationService;
+import com.example.station.service.CommonCacheService;
 import com.example.station.service.SysConfigService;
 import com.example.station.utils.SecurityUtils;
 import com.example.station.vo.NotificationVO;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +39,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationMapper notificationMapper;
     private final SysUserMapper sysUserMapper;
     private final SysConfigService sysConfigService;
+    private final CommonCacheService cache;
 
     @Override
     public R list(Integer isRead, String type, Integer pageNum, Integer pageSize) {
@@ -51,10 +54,22 @@ public class NotificationServiceImpl implements NotificationService {
             return R.error("未获取到当前用户信息！");
         }
         String typeTrim = StringUtils.hasText(type) ? type.trim() : null;
+        // 1.5 先查缓存（key 按用户 + 筛选 + 分页，30 秒 TTL，已读/新消息后清）
+        String cacheKey = cache.notifyListKey(userId, isRead, typeTrim, pageNum, pageSize);
+        CommonCacheService.CachedPage<NotificationVO> cached = cache.get(cacheKey,
+                new TypeReference<CommonCacheService.CachedPage<NotificationVO>>() {
+                });
+        if (cached != null) {
+            return R.success(cached.list()).add("total", cached.total());
+        }
         // 2. 分页查询我的消息
         PageHelper.startPage(pageNum, pageSize);
         List<NotificationVO> list = notificationMapper.selectMyList(userId, isRead, typeTrim);
         PageInfo<NotificationVO> pageInfo = new PageInfo<>(list);
+        // 2.5 写入缓存
+        cache.put(cacheKey, new CommonCacheService.CachedPage<>(list, pageInfo.getTotal(),
+                pageInfo.getPageNum(), pageInfo.getPageSize(), pageInfo.getPages()),
+                CommonCacheService.TTL_SHORT);
         return R.success(list).add("total", pageInfo.getTotal());
     }
 
@@ -64,7 +79,13 @@ public class NotificationServiceImpl implements NotificationService {
         if (userId == null) {
             return R.error("未获取到当前用户信息！");
         }
-        return R.success(notificationMapper.countUnread(userId));
+        // 0. 先查缓存（角标数，30 秒 TTL；已读操作会立即清）
+        Long count = cache.get(cache.notifyUnreadKey(userId), Long.class);
+        if (count == null) {
+            count = notificationMapper.countUnread(userId);
+            cache.put(cache.notifyUnreadKey(userId), count, CommonCacheService.TTL_SHORT);
+        }
+        return R.success(count);
     }
 
     @Override
@@ -82,6 +103,8 @@ public class NotificationServiceImpl implements NotificationService {
         if (rows == 0) {
             return R.error("消息不存在或已读！");
         }
+        // 清该用户全部通知缓存（列表 + 未读角标立即新鲜）
+        cache.evictPrefixAfterCommit(cache.notifyUserPrefix(userId));
         return R.success("标记已读成功！");
     }
 
@@ -92,6 +115,7 @@ public class NotificationServiceImpl implements NotificationService {
             return R.error("未获取到当前用户信息！");
         }
         notificationMapper.updateReadAll(userId, LocalDateTime.now());
+        cache.evictPrefixAfterCommit(cache.notifyUserPrefix(userId));
         return R.success("全部标记已读成功！");
     }
 
@@ -113,6 +137,8 @@ public class NotificationServiceImpl implements NotificationService {
         insertToUsers(userIds, null, dto.getTitle().trim(), dto.getContent().trim(),
                 NotificationConstants.TYPE_SYSTEM_NOTICE);
         log.info("【通知】公告发布成功：title={}，接收人数={}", dto.getTitle(), userIds.size());
+        // 广播公告涉及全部用户，清所有通知缓存
+        cache.evictPrefixAfterCommit(CommonCacheService.NOTIFY_PREFIX);
         return R.success("公告发布成功！");
     }
 
@@ -140,6 +166,8 @@ public class NotificationServiceImpl implements NotificationService {
         }
         Notification notification = build(userId, expressId, title.trim(), content.trim(), type);
         notificationMapper.insert(notification);
+        // 新消息进该用户收件箱，清其通知缓存（随外层事务提交）
+        cache.evictPrefixAfterCommit(cache.notifyUserPrefix(userId));
     }
 
     @Override
@@ -152,6 +180,8 @@ public class NotificationServiceImpl implements NotificationService {
             return;
         }
         insertToUsers(userIds, expressId, title, content, type);
+        // 管理员数量少，直接清全部通知缓存（实现简单可靠）
+        cache.evictPrefixAfterCommit(CommonCacheService.NOTIFY_PREFIX);
     }
 
     @Override
@@ -164,6 +194,8 @@ public class NotificationServiceImpl implements NotificationService {
             return;
         }
         insertToUsers(userIds, expressId, title, content, type);
+        // 广播涉及全部用户，清所有通知缓存
+        cache.evictPrefixAfterCommit(CommonCacheService.NOTIFY_PREFIX);
     }
 
     /**

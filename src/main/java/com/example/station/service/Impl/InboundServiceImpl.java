@@ -10,6 +10,7 @@ import com.example.station.mapper.ShelfLocationMapper;
 import com.example.station.mapper.ShelfMapper;
 import com.example.station.service.ExpressCacheService;
 import com.example.station.service.ExpressService;
+import com.example.station.service.CommonCacheService;
 import com.example.station.service.InboundService;
 import com.example.station.service.NotificationService;
 import com.example.station.vo.ExpressVO;
@@ -39,6 +40,7 @@ public class InboundServiceImpl implements InboundService {
     private final ExpressService expressService;
     private final NotificationService notificationService;
     private final ExpressCacheService expressCache;
+    private final CommonCacheService commonCache;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -153,6 +155,8 @@ public class InboundServiceImpl implements InboundService {
                 expressId, location.getId(), location.getShelfId());
         if (vo != null) {
             expressCache.evictExpress(vo.getId(), vo.getExpressNo());
+            // 入库改了货位占用与货架计数，缓存提交后同步清，保证可视化/列表新鲜
+            commonCache.evictPrefixAfterCommit(CommonCacheService.SHELF_PREFIX, CommonCacheService.LOCATION_PREFIX);
         }
         return R.success(vo);
     }

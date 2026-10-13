@@ -9,11 +9,13 @@ import com.example.station.mapper.OperationLogMapper;
 import com.example.station.mapper.SysRoleMapper;
 import com.example.station.mapper.SysUserMapper;
 import com.example.station.mapper.SysUserRoleMapper;
+import com.example.station.service.CommonCacheService;
 import com.example.station.service.CourierService;
 import com.example.station.utils.SecurityUtils;
 import com.example.station.vo.CourierVO;
 import com.example.station.vo.ExceptionVO;
 import com.example.station.vo.LogVO;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +58,10 @@ public class CourierServiceImpl implements CourierService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    /** 通用缓存服务 */
+    @Autowired
+    private CommonCacheService cache;
+
     /**
      * 分页查询快递员列表（PageHelper 自动按同条件生成 count，仅含 COURIER 角色）
      */
@@ -63,10 +69,26 @@ public class CourierServiceImpl implements CourierService {
     public R<List<CourierVO>> list(String kw, Integer status, Integer pageNum, Integer pageSize) {
         // 1. 关键字去首尾空格，空串归一为 null
         String kwTrim = StringUtils.hasText(kw) ? kw.trim() : null;
+        // 1.5 先查缓存
+        String cacheKey = cache.courierListKey(kwTrim, status, pageNum, pageSize);
+        CommonCacheService.CachedPage<CourierVO> cached = cache.get(cacheKey,
+                new TypeReference<CommonCacheService.CachedPage<CourierVO>>() {
+                });
+        if (cached != null) {
+            return R.success(cached.list())
+                    .add("total", cached.total())
+                    .add("pageNum", cached.pageNum())
+                    .add("pageSize", cached.pageSize())
+                    .add("pages", cached.pages());
+        }
         // 2. 分页查询列表（固定只查快递员角色账号）
         PageHelper.startPage(pageNum, pageSize);
         List<CourierVO> list = sysUserMapper.selectCourierList(kwTrim, status, RoleConstants.COURIER);
         PageInfo<CourierVO> pageInfo = new PageInfo<>(list);
+        // 2.5 写入缓存
+        cache.put(cacheKey, new CommonCacheService.CachedPage<>(list, pageInfo.getTotal(),
+                pageInfo.getPageNum(), pageInfo.getPageSize(), pageInfo.getPages()),
+                CommonCacheService.TTL_LIST);
         // 3. 组装分页字段返回
         return R.success(list)
                 .add("total", pageInfo.getTotal())
@@ -115,6 +137,8 @@ public class CourierServiceImpl implements CourierService {
         // 6. 保存快递员并分配 COURIER 角色（事务回滚保证两表一致）
         sysUserMapper.insert(user);
         sysUserRoleMapper.insert(user.getId(), roleId);
+        // 快递员与用户同表：同时清快递员与用户缓存空间
+        cache.evictPrefixAfterCommit(CommonCacheService.COURIER_PREFIX, CommonCacheService.USER_PREFIX);
         return R.success("新增成功！");
     }
 
@@ -146,6 +170,7 @@ public class CourierServiceImpl implements CourierService {
         user.setEmail(StringUtils.hasText(dto.getEmail()) ? dto.getEmail().trim() : null);
         user.setUpdateTime(LocalDateTime.now());
         sysUserMapper.update(user);
+        cache.evictPrefixAfterCommit(CommonCacheService.COURIER_PREFIX, CommonCacheService.USER_PREFIX);
         return R.success("修改成功！");
     }
 
@@ -170,6 +195,7 @@ public class CourierServiceImpl implements CourierService {
         // 4. 物理删除快递员与角色绑定（用户名/手机号有唯一键，逻辑删除会导致同名账号无法再注册）
         sysUserMapper.delete(id);
         sysUserRoleMapper.deleteByUserId(id);
+        cache.evictPrefixAfterCommit(CommonCacheService.COURIER_PREFIX, CommonCacheService.USER_PREFIX);
         return R.success("删除成功！");
     }
 

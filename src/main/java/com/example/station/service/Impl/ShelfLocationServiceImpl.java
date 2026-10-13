@@ -4,9 +4,11 @@ import com.example.station.dto.ShelfLocationDTO;
 import com.example.station.entity.ShelfLocation;
 import com.example.station.mapper.ShelfLocationMapper;
 import com.example.station.mapper.ShelfMapper;
+import com.example.station.service.CommonCacheService;
 import com.example.station.service.ShelfLocationService;
 import com.example.station.common.R;
 import com.example.station.vo.ShelfLocationVO;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import lombok.RequiredArgsConstructor;
@@ -28,16 +30,29 @@ public class ShelfLocationServiceImpl implements ShelfLocationService {
 
     private final ShelfLocationMapper shelfLocationMapper;
     private final ShelfMapper shelfMapper;
+    private final CommonCacheService cache;
 
     @Override
     public R list(Long shelfId, Integer status, Integer pageNum, Integer pageSize) {
         // 1. 分页参数兜底（PageHelper 默认第 1 页、每页 10 条）
         pageNum = pageNum == null ? 1 : pageNum;
         pageSize = pageSize == null ? 10 : pageSize;
+        // 1.5 先查缓存
+        String cacheKey = cache.locationListKey(shelfId, status, pageNum, pageSize);
+        CommonCacheService.CachedPage<ShelfLocationVO> cached = cache.get(cacheKey,
+                new TypeReference<CommonCacheService.CachedPage<ShelfLocationVO>>() {
+                });
+        if (cached != null) {
+            return R.success(cached.list()).add("total", cached.total());
+        }
         // 2. 分页查询
         PageHelper.startPage(pageNum, pageSize);
         List<ShelfLocationVO> list = shelfLocationMapper.selectList(shelfId, status);
         PageInfo<ShelfLocationVO> pageInfo = new PageInfo<>(list);
+        // 2.5 写入缓存
+        cache.put(cacheKey, new CommonCacheService.CachedPage<>(list, pageInfo.getTotal(),
+                pageInfo.getPageNum(), pageInfo.getPageSize(), pageInfo.getPages()),
+                CommonCacheService.TTL_LIST);
         return R.success(list).add("total", pageInfo.getTotal());
     }
 
@@ -47,8 +62,14 @@ public class ShelfLocationServiceImpl implements ShelfLocationService {
         if (id == null) {
             return R.error("货位ID不能为空！");
         }
-        // 2. 存在性校验
-        ShelfLocationVO vo = shelfLocationMapper.selectById(id);
+        // 2. 先查缓存，未命中查库并回填
+        ShelfLocationVO vo = cache.get(cache.locationDetailKey(id), ShelfLocationVO.class);
+        if (vo == null) {
+            vo = shelfLocationMapper.selectById(id);
+            if (vo != null) {
+                cache.put(cache.locationDetailKey(id), vo, CommonCacheService.TTL_LIST);
+            }
+        }
         if (vo == null) {
             return R.error("货位不存在！");
         }
@@ -105,6 +126,7 @@ public class ShelfLocationServiceImpl implements ShelfLocationService {
         shelfLocationMapper.insert(location);
         shelfMapper.increaseCapacity(dto.getShelfId(), now);
         log.info("【货位】新增成功：id={}，locationNo={}", location.getId(), locationNo);
+        cache.evictPrefixAfterCommit(CommonCacheService.LOCATION_PREFIX, CommonCacheService.SHELF_PREFIX);
         return R.success("新增成功！");
     }
 
@@ -159,6 +181,7 @@ public class ShelfLocationServiceImpl implements ShelfLocationService {
                 : computeStatus(current.getUsedCount(), dto.getCapacity());
         location.setStatus(newStatus);
         shelfLocationMapper.update(location);
+        cache.evictPrefixAfterCommit(CommonCacheService.LOCATION_PREFIX);
         return R.success("修改成功！");
     }
 
@@ -196,6 +219,7 @@ public class ShelfLocationServiceImpl implements ShelfLocationService {
         shelfLocationMapper.delete(id);
         shelfMapper.decreaseCapacity(current.getShelfId(), LocalDateTime.now());
         log.info("【货位】删除成功：id={}，locationNo={}", id, current.getLocationNo());
+        cache.evictPrefixAfterCommit(CommonCacheService.LOCATION_PREFIX, CommonCacheService.SHELF_PREFIX);
         return R.success("删除成功！");
     }
 
@@ -214,6 +238,7 @@ public class ShelfLocationServiceImpl implements ShelfLocationService {
         }
         // 3. 更新状态（管理员手动修正）
         shelfLocationMapper.updateStatus(id, status, LocalDateTime.now());
+        cache.evictPrefixAfterCommit(CommonCacheService.LOCATION_PREFIX);
         return R.success("状态修改成功！");
     }
 
@@ -224,7 +249,14 @@ public class ShelfLocationServiceImpl implements ShelfLocationService {
             return R.error("货架不存在！");
         }
         // 直接查全量（不调 PageHelper），用于 SVG 网格渲染
-        List<ShelfLocationVO> list = shelfLocationMapper.selectList(shelfId, null);
+        // 先查缓存（网格刷新频繁但数据 30 秒 TTL，入库/取件后立即失效）
+        String gridKey = cache.locationGridKey(shelfId);
+        List<ShelfLocationVO> list = cache.get(gridKey, new TypeReference<List<ShelfLocationVO>>() {
+        });
+        if (list == null) {
+            list = shelfLocationMapper.selectList(shelfId, null);
+            cache.put(gridKey, list, CommonCacheService.TTL_SHORT);
+        }
         return R.success(list);
     }
 }

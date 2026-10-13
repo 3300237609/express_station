@@ -4,9 +4,11 @@ import com.example.station.common.R;
 import com.example.station.dto.CompanyDTO;
 import com.example.station.entity.ExpressCompany;
 import com.example.station.mapper.ExpressCompanyMapper;
+import com.example.station.service.CommonCacheService;
 import com.example.station.service.CompanyService;
 import com.example.station.vo.CompanyVO;
 import com.example.station.vo.CompanyVolumeVO;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +29,10 @@ public class CompanyServiceImpl implements CompanyService {
     @Autowired
     private ExpressCompanyMapper expressCompanyMapper;
 
+    /** 通用缓存服务 */
+    @Autowired
+    private CommonCacheService cache;
+
     /**
      * 分页查询快递公司列表（PageHelper 自动按同条件生成 count）
      */
@@ -34,10 +40,26 @@ public class CompanyServiceImpl implements CompanyService {
     public R<List<CompanyVO>> list(String keyword, Integer status, Integer pageNum, Integer pageSize) {
         // 1. 关键字去首尾空格，空串归一为 null
         String keywordTrim = StringUtils.hasText(keyword) ? keyword.trim() : null;
+        // 1.5 先查缓存
+        String cacheKey = cache.companyListKey(keywordTrim, status, pageNum, pageSize);
+        CommonCacheService.CachedPage<CompanyVO> cached = cache.get(cacheKey,
+                new TypeReference<CommonCacheService.CachedPage<CompanyVO>>() {
+                });
+        if (cached != null) {
+            return R.success(cached.list())
+                    .add("total", cached.total())
+                    .add("pageNum", cached.pageNum())
+                    .add("pageSize", cached.pageSize())
+                    .add("pages", cached.pages());
+        }
         // 2. 分页查询列表
         PageHelper.startPage(pageNum, pageSize);
         List<CompanyVO> list = expressCompanyMapper.selectList(keywordTrim, status);
         PageInfo<CompanyVO> pageInfo = new PageInfo<>(list);
+        // 2.5 写入缓存
+        cache.put(cacheKey, new CommonCacheService.CachedPage<>(list, pageInfo.getTotal(),
+                pageInfo.getPageNum(), pageInfo.getPageSize(), pageInfo.getPages()),
+                CommonCacheService.TTL_LIST);
         // 3. 组装分页字段返回
         return R.success(list)
                 .add("total", pageInfo.getTotal())
@@ -55,10 +77,18 @@ public class CompanyServiceImpl implements CompanyService {
         if (id == null) {
             return R.error("公司ID不能为空！");
         }
-        // 2. 查询详情并校验存在性
-        CompanyVO company = expressCompanyMapper.selectById(id);
+        // 2. 先查缓存，未命中查库并回填
+        CompanyVO company = cache.get(cache.companyDetailKey(id), CompanyVO.class);
+        boolean fromDb = false;
+        if (company == null) {
+            company = expressCompanyMapper.selectById(id);
+            fromDb = true;
+        }
         if (company == null) {
             return R.error("快递公司不存在！");
+        }
+        if (fromDb) {
+            cache.put(cache.companyDetailKey(id), company, CommonCacheService.TTL_DETAIL);
         }
         // 3. 返回详情
         return R.success(company);
@@ -93,6 +123,7 @@ public class CompanyServiceImpl implements CompanyService {
         company.setUpdateTime(LocalDateTime.now());
         // 5. 执行新增
         expressCompanyMapper.insert(company);
+        cache.evictPrefixAfterCommit(CommonCacheService.COMPANY_PREFIX);
         return R.success("新增成功！");
     }
 
@@ -129,6 +160,7 @@ public class CompanyServiceImpl implements CompanyService {
         company.setContactPhone(StringUtils.hasText(dto.getContactPhone()) ? dto.getContactPhone().trim() : null);
         company.setUpdateTime(LocalDateTime.now());
         expressCompanyMapper.update(company);
+        cache.evictPrefixAfterCommit(CommonCacheService.COMPANY_PREFIX);
         return R.success("修改成功！");
     }
 
@@ -151,6 +183,7 @@ public class CompanyServiceImpl implements CompanyService {
         }
         // 4. 逻辑删除
         expressCompanyMapper.delete(id, LocalDateTime.now());
+        cache.evictPrefixAfterCommit(CommonCacheService.COMPANY_PREFIX);
         return R.success("删除成功！");
     }
 
@@ -172,6 +205,7 @@ public class CompanyServiceImpl implements CompanyService {
         }
         // 3. 更新状态
         expressCompanyMapper.updateStatus(id, status, LocalDateTime.now());
+        cache.evictPrefixAfterCommit(CommonCacheService.COMPANY_PREFIX);
         return R.success(status == 1 ? "启用成功！" : "停用成功！");
     }
 
@@ -180,8 +214,14 @@ public class CompanyServiceImpl implements CompanyService {
      */
     @Override
     public R<List<CompanyVO>> enabledList() {
-        // 1. 查询启用中且未删除的公司
-        return R.success(expressCompanyMapper.selectEnabledList());
+        // 1. 先查缓存（启用列表变化少，长 TTL；写公司时统一清）
+        List<CompanyVO> list = cache.get(cache.companyEnabledKey(), new TypeReference<List<CompanyVO>>() {
+        });
+        if (list == null) {
+            list = expressCompanyMapper.selectEnabledList();
+            cache.put(cache.companyEnabledKey(), list, CommonCacheService.TTL_LONG);
+        }
+        return R.success(list);
     }
 
     /**
@@ -189,7 +229,14 @@ public class CompanyServiceImpl implements CompanyService {
      */
     @Override
     public R<List<CompanyVolumeVO>> volume() {
-        // 1. 按公司聚合快递总量，倒序返回
-        return R.success(expressCompanyMapper.selectVolume());
+        // 1. 先查缓存（聚合结果随快递变化，短 TTL 60 秒）
+        List<CompanyVolumeVO> list = cache.get(cache.companyVolumeKey(),
+                new TypeReference<List<CompanyVolumeVO>>() {
+                });
+        if (list == null) {
+            list = expressCompanyMapper.selectVolume();
+            cache.put(cache.companyVolumeKey(), list, CommonCacheService.TTL_STAT);
+        }
+        return R.success(list);
     }
 }

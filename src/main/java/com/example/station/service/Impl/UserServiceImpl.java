@@ -10,11 +10,13 @@ import com.example.station.mapper.PickupRecordMapper;
 import com.example.station.mapper.SysRoleMapper;
 import com.example.station.mapper.SysUserMapper;
 import com.example.station.mapper.SysUserRoleMapper;
+import com.example.station.service.CommonCacheService;
 import com.example.station.service.UserService;
 import com.example.station.utils.SecurityUtils;
 import com.example.station.vo.ExpressVO;
 import com.example.station.vo.PickupRecordVO;
 import com.example.station.vo.UserVO;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +63,10 @@ public class UserServiceImpl implements UserService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    /** 通用缓存服务 */
+    @Autowired
+    private CommonCacheService cache;
+
     /**
      * 分页查询用户列表（PageHelper 自动按同条件生成 count，排除快递员角色）
      */
@@ -68,10 +74,26 @@ public class UserServiceImpl implements UserService {
     public R<List<UserVO>> list(String kw, Integer status, Integer pageNum, Integer pageSize) {
         // 1. 关键字去首尾空格，空串归一为 null
         String kwTrim = StringUtils.hasText(kw) ? kw.trim() : null;
+        // 1.5 先查缓存
+        String cacheKey = cache.userListKey(kwTrim, status, pageNum, pageSize);
+        CommonCacheService.CachedPage<UserVO> cached = cache.get(cacheKey,
+                new TypeReference<CommonCacheService.CachedPage<UserVO>>() {
+                });
+        if (cached != null) {
+            return R.success(cached.list())
+                    .add("total", cached.total())
+                    .add("pageNum", cached.pageNum())
+                    .add("pageSize", cached.pageSize())
+                    .add("pages", cached.pages());
+        }
         // 2. 分页查询列表（快递员在快递员管理页维护，此处排除）
         PageHelper.startPage(pageNum, pageSize);
         List<UserVO> list = sysUserMapper.selectList(kwTrim, status, RoleConstants.COURIER);
         PageInfo<UserVO> pageInfo = new PageInfo<>(list);
+        // 2.5 写入缓存
+        cache.put(cacheKey, new CommonCacheService.CachedPage<>(list, pageInfo.getTotal(),
+                pageInfo.getPageNum(), pageInfo.getPageSize(), pageInfo.getPages()),
+                CommonCacheService.TTL_LIST);
         // 3. 组装分页字段返回
         return R.success(list)
                 .add("total", pageInfo.getTotal())
@@ -89,8 +111,14 @@ public class UserServiceImpl implements UserService {
         if (id == null) {
             return R.error("用户ID不能为空！");
         }
-        // 2. 查询详情并校验存在性
-        UserVO user = sysUserMapper.selectById(id);
+        // 2. 先查缓存，未命中查库并回填
+        UserVO user = cache.get(cache.userDetailKey(id), UserVO.class);
+        if (user == null) {
+            user = sysUserMapper.selectById(id);
+            if (user != null) {
+                cache.put(cache.userDetailKey(id), user, CommonCacheService.TTL_DETAIL);
+            }
+        }
         if (user == null) {
             return R.error("用户不存在！");
         }
@@ -139,6 +167,7 @@ public class UserServiceImpl implements UserService {
         // 6. 保存用户并分配角色（事务回滚保证两表一致）
         sysUserMapper.insert(user);
         sysUserRoleMapper.insert(user.getId(), roleId);
+        cache.evictPrefixAfterCommit(CommonCacheService.USER_PREFIX);
         return R.success("新增成功！");
     }
 
@@ -197,6 +226,7 @@ public class UserServiceImpl implements UserService {
                 sysUserRoleMapper.insert(dto.getId(), roleId);
             }
         }
+        cache.evictPrefixAfterCommit(CommonCacheService.USER_PREFIX);
         return R.success("修改成功！");
     }
 
@@ -221,6 +251,7 @@ public class UserServiceImpl implements UserService {
         // 4. 物理删除用户与角色绑定（用户名/手机号有唯一键，逻辑删除会导致同名账号无法再注册）
         sysUserMapper.delete(id);
         sysUserRoleMapper.deleteByUserId(id);
+        cache.evictPrefixAfterCommit(CommonCacheService.USER_PREFIX);
         return R.success("删除成功！");
     }
 
@@ -246,6 +277,7 @@ public class UserServiceImpl implements UserService {
         }
         // 4. 更新状态
         sysUserMapper.updateStatus(id, status, LocalDateTime.now());
+        cache.evictPrefixAfterCommit(CommonCacheService.USER_PREFIX);
         return R.success(status == 1 ? "启用成功！" : "禁用成功！");
     }
 
@@ -329,8 +361,13 @@ public class UserServiceImpl implements UserService {
         if (!PHONE_PATTERN.matcher(phoneTrim).matches()) {
             return R.error("手机号格式不正确！");
         }
-        // 2. 精确匹配未删除用户（uk_phone 唯一至多一行）
-        UserVO user = sysUserMapper.selectByPhone(phoneTrim);
+        // 2. 先查缓存，未命中查库并回填（入参已校验，缓存 key 稳定）
+        UserVO user = cache.get(cache.userPhoneKey(phoneTrim), UserVO.class);
+        if (user == null) {
+            user = sysUserMapper.selectByPhone(phoneTrim);
+            // 未命中为正常业务分支，仍缓存结果（null 由 put 跳过，写用户后缓存会清）
+            cache.put(cache.userPhoneKey(phoneTrim), user, CommonCacheService.TTL_DETAIL);
+        }
         // 3. 未命中为正常业务分支（收件人可能非系统用户），data 返回 null 不报错
         return R.success(user);
     }

@@ -182,6 +182,9 @@ async function handleStore() {
 /** 入库完成：可继续录入下一单 */
 function resetAll() {
   resultVisible.value = false
+  // 必须清空上一单结果：确认货位按钮与推荐区操作按钮均以 !result 为显示条件，
+  // 残留会导致继续入库时「确认货位并完成入库」按钮不渲染
+  result.value = null
   formDone.value = false
   recommended.value = []
   selectedLocationId.value = null

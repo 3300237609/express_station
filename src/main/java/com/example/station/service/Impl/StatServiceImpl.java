@@ -7,6 +7,7 @@ import com.example.station.mapper.OperationLogMapper;
 import com.example.station.mapper.PickupRecordMapper;
 import com.example.station.mapper.ShelfLocationMapper;
 import com.example.station.service.CompanyService;
+import com.example.station.service.StatCacheService;
 import com.example.station.service.StatService;
 import com.example.station.utils.SecurityUtils;
 import com.example.station.vo.CompanyVolumeVO;
@@ -43,9 +44,15 @@ public class StatServiceImpl implements StatService {
     private final OperationLogMapper operationLogMapper;
     private final PickupRecordMapper pickupRecordMapper;
     private final CompanyService companyService;
+    private final StatCacheService statCache;
 
     @Override
     public R dashboard() {
+        // 0. 先查缓存（仪表盘允许分钟级延迟，TTL 60 秒）
+        DashboardVO cached = statCache.getDashboard();
+        if (cached != null) {
+            return R.success(cached);
+        }
         DashboardVO vo = new DashboardVO();
         // 1. 快递口径统计
         vo.setTotalExpress(zeroIfNull(expressMapper.countAll()));
@@ -64,6 +71,7 @@ public class StatServiceImpl implements StatService {
         vo.setUsageRate(total > 0 ? String.format("%.2f%%", used * 100.0 / total) : "0.00%");
         // 4. 各公司业务量（复用公司模块统计口径）
         vo.setCompanyVolume(companyVolume());
+        statCache.putDashboard(vo);
         return R.success(vo);
     }
 
@@ -79,6 +87,11 @@ public class StatServiceImpl implements StatService {
         if (start.until(end, java.time.temporal.ChronoUnit.DAYS) > MAX_TREND_DAYS) {
             return R.error("时间范围不能超过一年！");
         }
+        // 2.5 先查缓存（key 按归一化区间，历史区间数据不变命中率高）
+        List<TrendVO> cachedTrend = statCache.getTrend(start, end);
+        if (cachedTrend != null) {
+            return R.success(cachedTrend);
+        }
         // 3. 按日聚合入库与取件量，缺失日期补 0 合并
         Map<String, Long> inboundMap = toMap(expressMapper.selectInboundTrend(start, end), true);
         Map<String, Long> pickupMap = toMap(expressMapper.selectPickupTrend(start, end), false);
@@ -91,6 +104,7 @@ public class StatServiceImpl implements StatService {
             vo.setPickupCount(pickupMap.getOrDefault(key, 0L));
             list.add(vo);
         }
+        statCache.putTrend(start, end, list);
         return R.success(list);
     }
 
@@ -98,6 +112,11 @@ public class StatServiceImpl implements StatService {
     public R<CourierDashboardVO> courierDashboard() {
         // 1. 固定当前登录人口径（安全链已保证已认证；接口无入参，天然无法查看他人业绩）
         Long userId = Long.valueOf(SecurityUtils.getCurrentUserId());
+        // 1.5 先查缓存（key 按用户，TTL 60 秒）
+        CourierDashboardVO cachedCourier = statCache.getCourierDashboard(userId);
+        if (cachedCourier != null) {
+            return R.success(cachedCourier);
+        }
         // 2. 三业务口径聚合：完成入库日志（SUCCESS）/ 本人经手出库记录 / 本人异常登记
         PeriodCountVO inbound = nzp(operationLogMapper.countInboundByUser(userId));
         PeriodCountVO pickup = nzp(pickupRecordMapper.countPickupByOperator(userId));
@@ -113,6 +132,7 @@ public class StatServiceImpl implements StatService {
         vo.setTodayException(exception.getTodayCount());
         vo.setMonthException(exception.getMonthCount());
         vo.setTotalException(exception.getTotalCount());
+        statCache.putCourierDashboard(userId, vo);
         return R.success(vo);
     }
 
