@@ -396,8 +396,8 @@ onMounted(loadUnread)
           </el-badge>
 
           <!-- 用户下拉 -->
-          <el-dropdown @command="handleCommand">
-            <span class="user-info">
+          <el-dropdown trigger="click" @command="handleCommand">
+            <span class="user-info" @click.stop>
               <el-avatar :size="30" class="user-avatar">
                 {{ (authStore.user?.realName || authStore.user?.username || '?').charAt(0) }}
               </el-avatar>

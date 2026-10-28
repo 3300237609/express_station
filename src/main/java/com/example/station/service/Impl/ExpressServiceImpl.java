@@ -16,6 +16,7 @@ import com.example.station.mapper.PickupRecordMapper;
 import com.example.station.mapper.ShelfLocationMapper;
 import com.example.station.mapper.ShelfMapper;
 import com.example.station.mapper.SysUserMapper;
+import com.example.station.service.CommonCacheService;
 import com.example.station.service.ExpressCacheService;
 import com.example.station.service.ExpressService;
 import com.example.station.service.NotificationService;
@@ -57,6 +58,7 @@ public class ExpressServiceImpl implements ExpressService {
     private final ShelfMapper shelfMapper;
     private final NotificationService notificationService;
     private final ExpressCacheService expressCache;
+    private final CommonCacheService commonCache;
 
     /** 取件码随机源 */
     private final SecureRandom random = new SecureRandom();
@@ -427,6 +429,8 @@ public class ExpressServiceImpl implements ExpressService {
         log.info("【快递】货位调整成功：expressId={}，{} → {}",
                 current.getId(), oldLocation.getLocationNo(), location.getLocationNo());
         expressCache.evictExpress(current.getId(), current.getExpressNo());
+        // 货位 used_count / status 变更 + 跨货架时 shelf.used_count 也变 → 两个前缀都清
+        commonCache.evictPrefixAfterCommit(CommonCacheService.SHELF_PREFIX, CommonCacheService.LOCATION_PREFIX);
         return R.success("货位调整成功！");
     }
 

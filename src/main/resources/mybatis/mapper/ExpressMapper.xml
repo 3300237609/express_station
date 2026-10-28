@@ -34,7 +34,12 @@
         LEFT JOIN shelf s ON s.id = l.shelf_id
         WHERE e.deleted = 0
         <if test="keyword != null and keyword != ''">
-            AND e.express_no LIKE CONCAT('%', #{keyword}, '%')
+            AND (
+                e.express_no LIKE CONCAT('%', #{keyword}, '%')
+                OR e.receiver_name LIKE CONCAT('%', #{keyword}, '%')
+                OR e.receiver_phone LIKE CONCAT('%', #{keyword}, '%')
+                OR c.company_name LIKE CONCAT('%', #{keyword}, '%')
+            )
         </if>
         <if test="pickupCode != null and pickupCode != ''">
             AND e.pickup_code LIKE CONCAT('%', #{pickupCode}, '%')
@@ -294,7 +299,10 @@
                 OR e.receiver_phone = #{phone}
             </if>)
         <if test="keyword != null and keyword != ''">
-            AND e.express_no LIKE CONCAT('%', #{keyword}, '%')
+            AND (
+                e.express_no LIKE CONCAT('%', #{keyword}, '%')
+                OR e.receiver_phone LIKE CONCAT('%', #{keyword}, '%')
+            )
         </if>
         <if test="status != null and status != ''">
             AND e.status = #{status}
@@ -345,7 +353,11 @@
                      OR SUBSTRING(ol.description, 4) COLLATE utf8mb4_unicode_ci = CAST(e.id AS CHAR) COLLATE utf8mb4_unicode_ci)
           )
         <if test="keyword != null and keyword != ''">
-            AND e.express_no LIKE CONCAT('%', #{keyword}, '%')
+            AND (
+                e.express_no LIKE CONCAT('%', #{keyword}, '%')
+                OR e.receiver_name LIKE CONCAT('%', #{keyword}, '%')
+                OR e.receiver_phone LIKE CONCAT('%', #{keyword}, '%')
+            )
         </if>
         <if test="status != null and status != ''">
             AND e.status = #{status}

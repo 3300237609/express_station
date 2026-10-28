@@ -2,10 +2,13 @@
 import { ref, reactive, onMounted } from 'vue'
 import { listOperationLog } from '@/api/log'
 import { LOG_RESULT_OPTIONS } from '@/constants/dict'
+import { useMobileCollapse } from '@/composables/useMobileCollapse'
 
 /**
  * 操作日志（管理员）：关键操作审计查询，只读不可编辑
  */
+const { isMobile, filterCollapsed, toggleFilter } = useMobileCollapse()
+
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
@@ -50,7 +53,12 @@ onMounted(loadList)
 <template>
   <div class="page-container">
     <!-- 查询条件 -->
-    <div class="card filter-bar">
+    <div class="card filter-bar" :class="{ collapsed: filterCollapsed }">
+      <div class="filter-header" @click="toggleFilter">
+        <span class="filter-title">筛选条件</span>
+        <el-icon class="filter-arrow"><component :is="filterCollapsed ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
+      </div>
+      <div class="filter-body">
       <el-input v-model="query.keyword" placeholder="操作人/描述" clearable @keyup.enter="handleSearch" />
       <el-input v-model="query.module" placeholder="操作模块" clearable @keyup.enter="handleSearch" />
       <el-input v-model="query.operation" placeholder="操作类型" clearable @keyup.enter="handleSearch" />
@@ -59,6 +67,7 @@ onMounted(loadList)
       </el-select>
       <el-button type="primary" :icon="'Search'" @click="handleSearch">搜索</el-button>
       <el-button :icon="'Refresh'" @click="handleReset">重置</el-button>
+      </div>
     </div>
 
     <!-- 列表 -->

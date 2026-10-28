@@ -145,3 +145,67 @@ a {
     margin-top: 5vh;
   }
 }
+
+/* ============ 筛选区折叠（移动端专用） ============ */
+/* filter-header 桌面端始终隐藏，直接显示 filter-body */
+.filter-bar .filter-header {
+  display: none;
+}
+
+/* filter-body 桌面端始终可见，filter-bar 的 flex 布局直接应用于 body 里的子元素 */
+.filter-bar .filter-body {
+  display: contents;
+}
+
+/* 移动端：filter-header 显示为可点击行，折叠状态下隐藏 body */
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .filter-bar .filter-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0 8px 0;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid #f0f0f0;
+    margin-bottom: 8px;
+  }
+
+  .filter-bar .filter-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #303133;
+  }
+
+  .filter-bar .filter-arrow {
+    color: #909399;
+    font-size: 16px;
+    transition: transform 0.2s;
+  }
+
+  .filter-bar .filter-body {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .filter-bar.collapsed .filter-body {
+    display: none;
+  }
+
+  /* filter-bar 内部控件在移动端占满宽度或允许合理换行 */
+  .filter-bar .filter-body .el-input,
+  .filter-bar .filter-body .el-select {
+    width: 100%;
+  }
+
+  .filter-bar .filter-body .el-button {
+    flex: 1;
+    min-width: 80px;
+  }
+}

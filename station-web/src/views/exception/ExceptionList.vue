@@ -1,15 +1,17 @@
-<script setup>
+﻿<script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { listException, addException, handleException } from '@/api/exception'
 import { EXCEPTION_TYPE, EXCEPTION_TYPE_OPTIONS, HANDLE_STATUS, HANDLE_STATUS_OPTIONS } from '@/constants/dict'
 import { useAuthStore } from '@/stores/auth'
 import { ElMessage } from 'element-plus'
+import { useMobileCollapse } from '@/composables/useMobileCollapse'
 
 /**
  * 异常件管理（快递员登记 / 管理员处理）
  * 流程：登记异常 → 处理中 → 已处理 → 已关闭
  */
 const authStore = useAuthStore()
+const { isMobile, filterCollapsed, toggleFilter } = useMobileCollapse()
 const isAdmin = authStore.role === 'ADMIN'
 
 const loading = ref(false)
@@ -126,13 +128,19 @@ async function submitHandle() {
   }
 }
 
+/** 移动端下拉菜单命令分发 */
 onMounted(loadList)
 </script>
 
 <template>
   <div class="page-container">
     <!-- 查询条件 -->
-    <div class="card filter-bar">
+    <div class="card filter-bar" :class="{ collapsed: filterCollapsed }">
+      <div class="filter-header" @click="toggleFilter">
+        <span class="filter-title">筛选条件</span>
+        <el-icon class="filter-arrow"><component :is="filterCollapsed ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
+      </div>
+      <div class="filter-body">
       <el-input v-model="query.keyword" placeholder="单号/收件人" clearable @keyup.enter="handleSearch" />
       <el-select v-model="query.exceptionType" placeholder="异常类型" clearable>
         <el-option v-for="opt in EXCEPTION_TYPE_OPTIONS" :key="opt.value" v-bind="opt" />
@@ -142,6 +150,7 @@ onMounted(loadList)
       </el-select>
       <el-button type="primary" :icon="'Search'" @click="handleSearch">搜索</el-button>
       <el-button type="danger" :icon="'Warning'" @click="openAdd">登记异常</el-button>
+      </div>
     </div>
 
     <!-- 列表 -->
@@ -169,7 +178,7 @@ onMounted(loadList)
         <el-table-column prop="handleTime" label="处理时间" width="170">
           <template #default="{ row }">{{ row.handleTime || '-' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="110" fixed="right">
+        <el-table-column label="操作" width="110" :fixed="!isMobile ? 'right' : false">
           <template #default="{ row }">
             <el-button
               v-if="isAdmin && (row.handleStatus === 'PENDING' || row.handleStatus === 'PROCESSING')"

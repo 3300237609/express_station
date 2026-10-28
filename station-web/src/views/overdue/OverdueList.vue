@@ -1,13 +1,15 @@
-<script setup>
+﻿<script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { listOverdueExpress, remindOverdue, refreshOverdue } from '@/api/overdue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useMobileCollapse } from '@/composables/useMobileCollapse'
 
 /**
  * 超期快递（管理员）：超期列表、超期时长、发送用户提醒
  */
 const router = useRouter()
+const { isMobile, filterCollapsed, toggleFilter } = useMobileCollapse()
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
@@ -65,6 +67,7 @@ async function handleRemind(row) {
   }
 }
 
+/** 移动端下拉菜单命令分发 */
 onMounted(loadList)
 </script>
 
@@ -80,10 +83,16 @@ onMounted(loadList)
     />
 
     <!-- 查询条件 -->
-    <div class="card filter-bar">
+    <div class="card filter-bar" :class="{ collapsed: filterCollapsed }">
+      <div class="filter-header" @click="toggleFilter">
+        <span class="filter-title">筛选条件</span>
+        <el-icon class="filter-arrow"><component :is="filterCollapsed ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
+      </div>
+      <div class="filter-body">
       <el-input v-model="query.keyword" placeholder="单号/收件人/手机号" clearable @keyup.enter="handleSearch" />
       <el-button type="primary" :icon="'Search'" @click="handleSearch">搜索</el-button>
       <el-button :icon="'Refresh'" :loading="refreshing" @click="handleRefresh">超期检测</el-button>
+      </div>
     </div>
 
     <!-- 列表 -->
@@ -108,7 +117,7 @@ onMounted(loadList)
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="170" fixed="right">
+        <el-table-column label="操作" width="170" :fixed="!isMobile ? 'right' : false">
           <template #default="{ row }">
             <el-button link type="primary" @click="router.push(`/express/detail/${row.id}`)">详情</el-button>
             <el-button

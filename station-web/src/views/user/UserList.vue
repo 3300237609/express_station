@@ -1,14 +1,16 @@
-<script setup>
+﻿<script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { listUser, addUser, updateUser, deleteUser, updateUserStatus, resetUserPassword } from '@/api/user'
 import { ROLE, USER_STATUS } from '@/constants/dict'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useMobileCollapse } from '@/composables/useMobileCollapse'
 
 /**
  * 用户管理（管理员）：普通用户增删改查、启用禁用、重置密码、查看其快递与取件记录
  */
 const router = useRouter()
+const { isMobile, filterCollapsed, toggleFilter } = useMobileCollapse()
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
@@ -151,13 +153,34 @@ function viewExpress(row) {
   router.push({ path: '/express/list', query: { receiverName: row.realName, receiverPhone: row.phone } })
 }
 
+/** 移动端下拉菜单命令分发 */
+function handleRowCommand(command, row) {
+  switch (command) {
+    case 'edit':
+      openEdit(row); break
+    case 'toggle':
+      handleToggleStatus(row); break
+    case 'resetPwd':
+      handleResetPwd(row); break
+    case 'viewExpress':
+      viewExpress(row); break
+    case 'delete':
+      handleDelete(row); break
+  }
+}
+
 onMounted(loadList)
 </script>
 
 <template>
   <div class="page-container">
     <!-- 查询条件 -->
-    <div class="card filter-bar">
+    <div class="card filter-bar" :class="{ collapsed: filterCollapsed }">
+      <div class="filter-header" @click="toggleFilter">
+        <span class="filter-title">筛选条件</span>
+        <el-icon class="filter-arrow"><component :is="filterCollapsed ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
+      </div>
+      <div class="filter-body">
       <el-input v-model="query.kw" placeholder="用户名/姓名/手机号" clearable @keyup.enter="handleSearch" />
       <el-select v-model="query.status" placeholder="账号状态" clearable>
         <el-option label="正常" :value="1" />
@@ -165,6 +188,7 @@ onMounted(loadList)
       </el-select>
       <el-button type="primary" :icon="'Search'" @click="handleSearch">搜索</el-button>
       <el-button type="success" :icon="'Plus'" @click="openAdd">新增用户</el-button>
+      </div>
     </div>
 
     <!-- 列表 -->
@@ -190,15 +214,31 @@ onMounted(loadList)
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="170" />
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column label="操作" width="360" :fixed="!isMobile ? 'right' : false">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="warning" @click="handleToggleStatus(row)">
-              {{ row.status === 1 ? '禁用' : '启用' }}
-            </el-button>
-            <el-button link type="warning" @click="handleResetPwd(row)">重置密码</el-button>
-            <el-button link type="primary" @click="viewExpress(row)">TA的快递</el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <!-- 桌面端：完整按钮组 -->
+            <template v-if="!isMobile">
+              <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+              <el-button link type="warning" @click="handleToggleStatus(row)">
+                {{ row.status === 1 ? '禁用' : '启用' }}
+              </el-button>
+              <el-button link type="info" @click="handleResetPwd(row)">重置密码</el-button>
+              <el-button link type="success" @click="viewExpress(row)">TA的快递</el-button>
+              <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            </template>
+            <!-- 移动端：更多下拉 -->
+            <el-dropdown v-else trigger="click" @command="(c) => handleRowCommand(c, row)">
+              <el-button link type="primary">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="edit">编辑</el-dropdown-item>
+                  <el-dropdown-item command="toggle">{{ row.status === 1 ? '禁用' : '启用' }}</el-dropdown-item>
+                  <el-dropdown-item command="resetPwd">重置密码</el-dropdown-item>
+                  <el-dropdown-item command="viewExpress">TA的快递</el-dropdown-item>
+                  <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>

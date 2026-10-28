@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { listMyExpress } from '@/api/express'
 import { useAuthStore } from '@/stores/auth'
 import { EXPRESS_STATUS_OPTIONS } from '@/constants/dict'
+import { useMobileCollapse } from '@/composables/useMobileCollapse'
 
 /**
  * 我的快递（登录即可，分视角）：快递员=本人经手入库的快递；管理员/普通用户=收件人为您本人（或登记手机号为您手机号）
@@ -12,6 +13,7 @@ import { EXPRESS_STATUS_OPTIONS } from '@/constants/dict'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const { isMobile, filterCollapsed, toggleFilter } = useMobileCollapse()
 /** 快递员经手视角（文案区分） */
 const isCourier = authStore.role === 'COURIER'
 const loading = ref(false)
@@ -69,7 +71,12 @@ onMounted(() => {
     />
 
     <!-- 查询条件 -->
-    <div class="card filter-bar">
+    <div class="card filter-bar" :class="{ collapsed: filterCollapsed }">
+      <div class="filter-header" @click="toggleFilter">
+        <span class="filter-title">筛选条件</span>
+        <el-icon class="filter-arrow"><component :is="filterCollapsed ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
+      </div>
+      <div class="filter-body">
       <el-input v-model="query.keyword" placeholder="快递单号" clearable @keyup.enter="handleSearch" />
       <el-select v-model="query.status" placeholder="快递状态" clearable style="width: 150px">
         <el-option v-for="opt in EXPRESS_STATUS_OPTIONS" :key="opt.value" v-bind="opt" />
@@ -77,6 +84,7 @@ onMounted(() => {
       <el-button type="primary" :icon="'Search'" @click="handleSearch">搜索</el-button>
       <el-button :icon="'Refresh'" @click="handleReset">重置</el-button>
       <el-button type="warning" :icon="'Key'" @click="router.push('/pickup/verify')">取件码验证</el-button>
+      </div>
     </div>
 
     <!-- 列表 -->

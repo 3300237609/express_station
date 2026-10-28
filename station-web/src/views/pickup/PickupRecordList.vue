@@ -2,10 +2,12 @@
 import { ref, reactive, onMounted } from 'vue'
 import { listPickupRecord } from '@/api/pickup'
 import { PICKUP_METHOD, labelOf } from '@/constants/dict'
+import { useMobileCollapse } from '@/composables/useMobileCollapse'
 
 /**
  * 取件记录（快递员/管理员）：历史取件出库记录查询
  */
+const { isMobile, filterCollapsed, toggleFilter } = useMobileCollapse()
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
@@ -51,7 +53,12 @@ onMounted(loadList)
 <template>
   <div class="page-container">
     <!-- 查询条件 -->
-    <div class="card filter-bar">
+    <div class="card filter-bar" :class="{ collapsed: filterCollapsed }">
+      <div class="filter-header" @click="toggleFilter">
+        <span class="filter-title">筛选条件</span>
+        <el-icon class="filter-arrow"><component :is="filterCollapsed ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
+      </div>
+      <div class="filter-body">
       <el-input v-model="query.kw" placeholder="单号/取件码/用户" clearable @keyup.enter="handleSearch" />
       <el-date-picker
         v-model="dateRange"
@@ -70,6 +77,7 @@ onMounted(loadList)
       />
       <el-button type="primary" :icon="'Search'" @click="handleSearch">搜索</el-button>
       <el-button :icon="'Refresh'" @click="handleReset">重置</el-button>
+      </div>
     </div>
 
     <!-- 列表 -->

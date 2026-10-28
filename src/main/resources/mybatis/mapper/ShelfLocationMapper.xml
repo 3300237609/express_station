@@ -51,6 +51,9 @@
         WHERE l.id = #{id}
     </select>
 
+    <!-- 空闲货位（移快件/手动选位用）：有剩余容量且未停用，所属货架启用
+         注意：与 selectRecommendList 同口径，不强制要求 used_count=0（容量>1 的货位允许继续放）
+         仅过滤 status=4 停用 和 used_count >= capacity 已满 -->
     <select id="selectFreeList" resultType="com.example.station.vo.ShelfLocationVO">
         SELECT
             l.id AS id,
@@ -69,8 +72,8 @@
         JOIN shelf s ON s.id = l.shelf_id
             AND s.deleted = 0
             AND s.status = 1
-        WHERE l.status = 1
-          AND l.used_count = 0
+        WHERE l.status != 4
+          AND l.used_count &lt; l.capacity
         <if test="shelfId != null">
             AND l.shelf_id = #{shelfId}
         </if>
@@ -181,13 +184,15 @@
         ORDER BY l.shelf_id ASC, l.row_no ASC, l.column_no ASC
     </select>
 
-    <!-- 占用货位：used_count+1 并按容量重算状态；条件守卫最后一个容量被并发抢占时返回 0 行 -->
+    <!-- 占用货位：used_count+1 并重算状态
+         注意：MySQL SET 按左→右顺序求值，CASE 读到的 used_count 已经是 +1 后的新值，
+         所以容量比较直接用 used_count >= capacity 即可，无需额外 +1（多加会导致 1 件就误判为已满）-->
     <update id="increaseUsed">
         UPDATE shelf_location
         SET used_count = used_count + 1,
             status = CASE
                 WHEN status = 4 THEN 4
-                WHEN used_count + 1 &gt;= capacity THEN 3
+                WHEN used_count &gt;= capacity THEN 3
                 ELSE 2
             END,
             update_time = #{updateTime}
@@ -195,13 +200,15 @@
           AND used_count &lt; capacity
     </update>
 
-    <!-- 释放货位：used_count-1 并重算状态；used_count>0 守卫，返回 0 行属数据不一致须回滚 -->
+    <!-- 释放货位：used_count-1 并重算状态
+         同上：CASE 读到的 used_count 已经是 -1 后的新值，
+         空状态比较直接用 used_count <= 0 即可（多减一次会导致还有货却被判为空闲）-->
     <update id="decreaseUsed">
         UPDATE shelf_location
         SET used_count = used_count - 1,
             status = CASE
                 WHEN status = 4 THEN 4
-                WHEN used_count - 1 &lt;= 0 THEN 1
+                WHEN used_count &lt;= 0 THEN 1
                 ELSE 2
             END,
             update_time = #{updateTime}

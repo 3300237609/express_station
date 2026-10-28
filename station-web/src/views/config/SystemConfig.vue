@@ -1,11 +1,14 @@
-<script setup>
+﻿<script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { listConfig, updateConfig } from '@/api/config'
 import { ElMessage } from 'element-plus'
+import { useMobileCollapse } from '@/composables/useMobileCollapse'
 
 /**
  * 系统配置（管理员）：保管时长、取件码长度、通知开关等运行参数维护
  */
+const { isMobile, filterCollapsed, toggleFilter } = useMobileCollapse()
+
 const loading = ref(false)
 const list = ref([])
 
@@ -81,6 +84,7 @@ async function handleSubmit() {
   }
 }
 
+/** 移动端下拉菜单命令分发 */
 onMounted(loadList)
 </script>
 
@@ -96,8 +100,14 @@ onMounted(loadList)
     />
 
     <!-- 查询条件 -->
-    <div class="card filter-bar">
+    <div class="card filter-bar" :class="{ collapsed: filterCollapsed }">
+      <div class="filter-header" @click="toggleFilter">
+        <span class="filter-title">筛选条件</span>
+        <el-icon class="filter-arrow"><component :is="filterCollapsed ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
+      </div>
+      <div class="filter-body">
       <el-input v-model="kw" placeholder="配置键/说明，输入即筛" clearable />
+      </div>
     </div>
 
     <!-- 列表 -->
@@ -121,7 +131,7 @@ onMounted(loadList)
           </template>
         </el-table-column>
         <el-table-column prop="updateTime" label="更新时间" width="170" />
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column label="操作" width="90" :fixed="!isMobile ? 'right' : false">
           <template #default="{ row }">
             <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
           </template>

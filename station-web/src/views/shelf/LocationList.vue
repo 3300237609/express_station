@@ -1,13 +1,15 @@
-<script setup>
+﻿<script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { listLocation, addLocation, updateLocation, deleteLocation, updateLocationStatus, listShelf } from '@/api/shelf'
 import { LOCATION_STATUS, LOCATION_STATUS_OPTIONS } from '@/constants/dict'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useMobileCollapse } from '@/composables/useMobileCollapse'
 
 /**
  * 货位管理（管理员）：货位增删改查、启停与状态展示、查询空闲货位
  * 后端列表仅支持货架/状态两个筛选（无编号模糊查询），启停走专用状态接口
  */
+const { isMobile, filterCollapsed, toggleFilter } = useMobileCollapse()
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
@@ -127,6 +129,15 @@ async function handleToggleStatus(row) {
 }
 
 /** 删除货位（已占用时后端会拒绝） */
+/** 移动端下拉菜单命令分发 */
+function handleRowCommand(command, row) {
+  switch (command) {
+    case 'edit': openEdit(row); break
+    case 'toggle': handleToggleStatus(row); break
+    case 'delete': handleDelete(row); break
+  }
+}
+
 async function handleDelete(row) {
   await ElMessageBox.confirm(`确定删除货位【${row.locationNo}】吗？`, '删除确认', {
     type: 'warning',
@@ -152,7 +163,12 @@ onMounted(async () => {
 <template>
   <div class="page-container">
     <!-- 查询条件 -->
-    <div class="card filter-bar">
+    <div class="card filter-bar" :class="{ collapsed: filterCollapsed }">
+      <div class="filter-header" @click="toggleFilter">
+        <span class="filter-title">筛选条件</span>
+        <el-icon class="filter-arrow"><component :is="filterCollapsed ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
+      </div>
+      <div class="filter-body">
       <el-select v-model="query.shelfId" placeholder="所属货架" clearable>
         <el-option v-for="s in shelfOptions" :key="s.id" :label="s.shelfNo" :value="s.id" />
       </el-select>
@@ -162,6 +178,7 @@ onMounted(async () => {
       <el-button type="primary" :icon="'Search'" @click="handleSearch">搜索</el-button>
       <el-button :icon="'Filter'" @click="showFree">只看空闲</el-button>
       <el-button type="success" :icon="'Plus'" @click="openAdd">新增货位</el-button>
+      </div>
     </div>
 
     <!-- 列表 -->
@@ -182,13 +199,25 @@ onMounted(async () => {
             <dict-tag type="LOCATION_STATUS" :code="row.status" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="210" fixed="right">
+        <el-table-column label="操作" width="210" :fixed="!isMobile ? 'right' : false">
           <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-            <el-button link type="warning" @click="handleToggleStatus(row)">
-              {{ row.status === 4 ? '启用' : '停用' }}
-            </el-button>
-            <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            <template v-if="!isMobile">
+              <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+              <el-button link type="warning" @click="handleToggleStatus(row)">
+                {{ row.status === 4 ? '启用' : '停用' }}
+              </el-button>
+              <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
+            </template>
+            <el-dropdown v-else trigger="click" @command="(c) => handleRowCommand(c, row)">
+              <el-button link type="primary">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="edit">编辑</el-dropdown-item>
+                  <el-dropdown-item command="toggle">{{ row.status === 4 ? '启用' : '停用' }}</el-dropdown-item>
+                  <el-dropdown-item command="delete" divided>删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>

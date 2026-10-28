@@ -1,12 +1,13 @@
-<script setup>
+﻿<script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { listExpress, deleteExpress, updateExpressStatus, updateExpressLocation } from '@/api/express'
 import { listCompanyOptions } from '@/api/company'
-import { listFreeLocation } from '@/api/shelf'
+import { recommendLocation, detailLocation } from '@/api/shelf'
 import { EXPRESS_STATUS_OPTIONS } from '@/constants/dict'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useMobileCollapse } from '@/composables/useMobileCollapse'
 
 /**
  * 快递列表（管理员）：条件查询、详情、状态修正、调整货位、删除
@@ -16,6 +17,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
+const { isMobile, filterCollapsed, toggleFilter } = useMobileCollapse()
 
 const loading = ref(false)
 const list = ref([])
@@ -93,6 +95,20 @@ function goDetail(row) {
   router.push(`/express/detail/${row.id}`)
 }
 
+/** 移动端下拉菜单命令分发 */
+function handleRowCommand(command, row) {
+  switch (command) {
+    case 'detail':
+      goDetail(row); break
+    case 'location':
+      openLocationDialog(row); break
+    case 'status':
+      openStatusDialog(row); break
+    case 'delete':
+      handleDelete(row); break
+  }
+}
+
 /** 删除快递（逻辑删除，需确认） */
 async function handleDelete(row) {
   await ElMessageBox.confirm(`确定删除快递【${row.expressNo}】吗？`, '删除确认', {
@@ -108,19 +124,48 @@ async function handleDelete(row) {
 // ==================== 调整货位 ====================
 const locationDialogVisible = ref(false)
 const currentRow = ref(null)
-const freeLocations = ref([])
+const freeLocations = ref([])   // 实际为 recommendLocation 返回的推荐列表
 const selectedLocationId = ref(null)
 const locationLoading = ref(false)
 
-/** 打开调整货位弹窗 */
+/** 打开调整货位弹窗：按快递尺寸/重量调智能推荐 */
 async function openLocationDialog(row) {
   currentRow.value = row
-  selectedLocationId.value = row.locationId || null
+  selectedLocationId.value = null
   locationDialogVisible.value = true
   locationLoading.value = true
   try {
-    const r = await listFreeLocation()
-    freeLocations.value = r.data || []
+    const params = {}
+    if (row.sizeType) params.sizeType = row.sizeType
+    if (row.weight) params.weight = row.weight
+    const [recR, curR] = await Promise.all([
+      recommendLocation(params).catch(() => ({ data: [] })),
+      row.locationId ? detailLocation(row.locationId).catch(() => ({ data: null })) : Promise.resolve({ data: null })
+    ])
+    let list = recR.data || []
+
+    // 给当前所在货位打 isCurrent 标记（无论是否在推荐列表里都显示标签）
+    if (row.locationId) {
+      const idx = list.findIndex(l => l.locationId === row.locationId)
+      if (idx >= 0) {
+        list[idx].isCurrent = true
+      } else {
+        const cur = curR.data || {}
+        const cap = Number(cur.capacity ?? 0)
+        const used = Number(cur.usedCount ?? 0)
+        list.unshift({
+          locationId: row.locationId,
+          locationNo: row.locationNo,
+          shelfNo: row.shelfNo || cur.shelfNo || '',
+          remaining: Math.max(cap - used, 0),
+          score: null,
+          reason: cur.status === 4 ? '当前货位已停用' : '当前所在货位',
+          isCurrent: true
+        })
+      }
+    }
+    freeLocations.value = list
+    selectedLocationId.value = row.locationId
   } finally {
     locationLoading.value = false
   }
@@ -189,7 +234,12 @@ onMounted(async () => {
 <template>
   <div class="page-container">
     <!-- 查询条件 -->
-    <div class="card filter-bar">
+    <div class="card filter-bar" :class="{ collapsed: filterCollapsed }">
+      <div class="filter-header" @click="toggleFilter">
+        <span class="filter-title">筛选条件</span>
+        <el-icon class="filter-arrow"><component :is="filterCollapsed ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
+      </div>
+      <div class="filter-body">
       <el-input v-model="query.keyword" placeholder="快递单号" clearable @keyup.enter="handleSearch" />
       <el-input v-model="query.receiverName" placeholder="收件人" clearable @keyup.enter="handleSearch" />
       <el-input v-model="query.receiverPhone" placeholder="收件手机号" clearable @keyup.enter="handleSearch" />
@@ -229,6 +279,7 @@ onMounted(async () => {
       >
         快递入库
       </el-button>
+      </div>
     </div>
 
     <!-- 列表 -->
@@ -259,33 +310,58 @@ onMounted(async () => {
           </template>
         </el-table-column>
         <el-table-column prop="storageTime" label="入库时间" width="170" />
-        <el-table-column label="操作" width="290" fixed="right">
+        <el-table-column label="操作" width="290" :fixed="!isMobile ? 'right' : false">
           <template #default="{ row }">
-            <el-button link type="primary" @click="goDetail(row)">详情</el-button>
-            <el-button
-              v-if="authStore.hasRole(['ADMIN']) && row.status === 'WAITING_PICKUP'"
-              link
-              type="warning"
-              @click="openLocationDialog(row)"
-            >
-              调整货位
-            </el-button>
-            <el-button
-              v-if="authStore.hasRole(['ADMIN'])"
-              link
-              type="warning"
-              @click="openStatusDialog(row)"
-            >
-              状态修正
-            </el-button>
-            <el-button
-              v-if="authStore.hasRole(['ADMIN'])"
-              link
-              type="danger"
-              @click="handleDelete(row)"
-            >
-              删除
-            </el-button>
+            <!-- 桌面端：完整按钮组 -->
+            <template v-if="!isMobile">
+              <el-button link type="primary" @click="goDetail(row)">详情</el-button>
+              <el-button
+                v-if="authStore.hasRole(['ADMIN']) && row.status === 'WAITING_PICKUP'"
+                link
+                type="success"
+                @click="openLocationDialog(row)"
+              >
+                调整货位
+              </el-button>
+              <el-button
+                v-if="authStore.hasRole(['ADMIN'])"
+                link
+                type="warning"
+                @click="openStatusDialog(row)"
+              >
+                状态修正
+              </el-button>
+              <el-button
+                v-if="authStore.hasRole(['ADMIN'])"
+                link
+                type="danger"
+                @click="handleDelete(row)"
+              >
+                删除
+              </el-button>
+            </template>
+            <!-- 移动端：更多下拉 -->
+            <el-dropdown v-else trigger="click" @command="(c) => handleRowCommand(c, row)">
+              <el-button link type="primary">更多<el-icon class="el-icon--right"><ArrowDown /></el-icon></el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="detail">详情</el-dropdown-item>
+                  <el-dropdown-item
+                    v-if="authStore.hasRole(['ADMIN']) && row.status === 'WAITING_PICKUP'"
+                    command="location"
+                  >调整货位</el-dropdown-item>
+                  <el-dropdown-item
+                    v-if="authStore.hasRole(['ADMIN'])"
+                    command="status"
+                  >状态修正</el-dropdown-item>
+                  <el-dropdown-item
+                    v-if="authStore.hasRole(['ADMIN'])"
+                    command="delete"
+                    divided
+                  >删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </template>
         </el-table-column>
       </el-table>
@@ -309,20 +385,31 @@ onMounted(async () => {
       <div v-loading="locationLoading" style="min-height: 120px">
         <el-alert
           v-if="freeLocations.length === 0 && !locationLoading"
-          title="当前没有空闲货位，请先在货位管理中释放货位！"
+          title="当前没有可用货位，请先在货位管理中释放或启用货位！"
           type="warning"
           :closable="false"
           style="margin-bottom: 14px"
         />
         <el-form label-width="80px">
           <el-form-item label="目标货位">
-            <el-select v-model="selectedLocationId" placeholder="选择空闲货位" style="width: 100%">
+            <el-select v-model="selectedLocationId" placeholder="选择推荐货位" style="width: 100%">
               <el-option
-                v-for="loc in freeLocations"
-                :key="loc.id"
-                :label="`${loc.locationNo}（${loc.shelfNo || ''} 剩余 ${Number(loc.capacity || 0) - Number(loc.usedCount || 0)}）`"
-                :value="loc.id"
-              />
+                v-for="(loc, idx) in freeLocations"
+                :key="loc.locationId"
+                :label="`${loc.locationNo}（${loc.shelfNo || '-'} · 剩余 ${loc.remaining ?? 0}${loc.score != null ? ' · 评分 ' + loc.score : ''}）`"
+                :value="loc.locationId"
+              >
+                <span>{{ loc.locationNo }}</span>
+                <span style="color: var(--el-text-color-secondary); margin-left: 8px">
+                  {{ loc.shelfNo || '-' }} · 剩余 {{ loc.remaining ?? 0 }}
+                </span>
+                <el-tag v-if="loc.score != null" type="warning" size="small" style="margin-left: 8px">{{ loc.score }} 分</el-tag>
+                <el-tag v-if="idx === 0 && !loc.isCurrent" type="success" size="small" style="margin-left: 6px">首推</el-tag>
+                <el-tag v-if="loc.isCurrent" type="info" size="small" style="margin-left: 6px">当前</el-tag>
+                <span v-if="loc.reason" style="color: var(--el-text-color-secondary); margin-left: 8px; font-size: 12px">
+                  {{ loc.reason }}
+                </span>
+              </el-option>
             </el-select>
           </el-form-item>
         </el-form>

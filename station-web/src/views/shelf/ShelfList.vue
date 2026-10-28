@@ -1,13 +1,15 @@
-<script setup>
+﻿<script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { listShelf, addShelf, updateShelf, deleteShelf, updateShelfStatus } from '@/api/shelf'
 import { usagePercent } from '@/utils/format'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useMobileCollapse } from '@/composables/useMobileCollapse'
 
 /**
  * 货架管理（管理员）：货架增删改查、启停开关 + 货位使用率展示
  * 后端只有一个关键字 keyword（同时模糊匹配编号或区域）；状态走专用启停接口，不进编辑弹窗
  */
+const { isMobile, filterCollapsed, toggleFilter } = useMobileCollapse()
 const loading = ref(false)
 const list = ref([])
 const total = ref(0)
@@ -152,7 +154,12 @@ onMounted(loadList)
 <template>
   <div class="page-container">
     <!-- 查询条件 -->
-    <div class="card filter-bar">
+    <div class="card filter-bar" :class="{ collapsed: filterCollapsed }">
+      <div class="filter-header" @click="toggleFilter">
+        <span class="filter-title">筛选条件</span>
+        <el-icon class="filter-arrow"><component :is="filterCollapsed ? 'ArrowDown' : 'ArrowUp'" /></el-icon>
+      </div>
+      <div class="filter-body">
       <el-input v-model="query.keyword" placeholder="编号/区域" clearable @keyup.enter="handleSearch" />
       <el-select v-model="query.status" placeholder="货架状态" clearable>
         <el-option label="正常" :value="1" />
@@ -160,6 +167,7 @@ onMounted(loadList)
       </el-select>
       <el-button type="primary" :icon="'Search'" @click="handleSearch">搜索</el-button>
       <el-button type="success" :icon="'Plus'" @click="openAdd">新增货架</el-button>
+      </div>
     </div>
 
     <!-- 列表 -->
@@ -193,7 +201,7 @@ onMounted(loadList)
           </template>
         </el-table-column>
         <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip />
-        <el-table-column label="操作" width="160" fixed="right">
+        <el-table-column label="操作" width="160" :fixed="!isMobile ? 'right' : false">
           <template #default="{ row }">
             <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
             <el-button link type="danger" @click="handleDelete(row)">删除</el-button>
