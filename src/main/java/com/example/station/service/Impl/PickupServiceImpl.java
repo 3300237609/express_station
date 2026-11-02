@@ -136,8 +136,9 @@ public class PickupServiceImpl implements PickupService {
         log.info("【取件】出库成功：expressId={}，expressNo={}，method={}",
                 vo.getId(), vo.getExpressNo(), pickupMethod);
         expressCache.evictExpress(vo.getId(), vo.getExpressNo());
-        // 取件释放了货位、刷新了货架计数，缓存提交后同步清
-        commonCache.evictPrefixAfterCommit(CommonCacheService.SHELF_PREFIX, CommonCacheService.LOCATION_PREFIX);
+        // 取件释放了货位、刷新了货架计数，缓存提交后同步清；该用户的取件推荐也随之失效
+        commonCache.evictPrefixAfterCommit(CommonCacheService.SHELF_PREFIX, CommonCacheService.LOCATION_PREFIX,
+                commonCache.pickupRecommendUserPrefix(receiverUserId));
         return R.success("取件成功！");
     }
 

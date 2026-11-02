@@ -42,6 +42,7 @@ public class CommonCacheService {
     public static final String COURIER_PREFIX = "courier:";
     public static final String NOTIFY_PREFIX = "notify:";
     public static final String STAT_PREFIX = "stat:";
+    public static final String PICKUP_RECOMMEND_PREFIX = "pickup-recommend:";
 
     // ==================== TTL 策略 ====================
 
@@ -55,6 +56,8 @@ public class CommonCacheService {
     public static final Duration TTL_SHORT = Duration.ofSeconds(30);
     /** 统计聚合：60 秒 */
     public static final Duration TTL_STAT = Duration.ofSeconds(60);
+    /** 取件推荐结果：5 分钟（取件/入库后主动失效，TTL 兜底） */
+    public static final Duration TTL_RECOMMEND = Duration.ofMinutes(5);
 
     /**
      * 分页缓存载体（list 数据 + total 总数 + 分页字段，命中后原样还原 R）
@@ -256,6 +259,18 @@ public class CommonCacheService {
     /** 指定用户的通知 Key 前缀（标记已读/单发后清该用户全部通知缓存） */
     public String notifyUserPrefix(Long userId) {
         return NOTIFY_PREFIX + userId + ":";
+    }
+
+    // ---------- 取件时间推荐 ----------
+
+    /** 用户最近一次推荐结果（LLM/规则引擎共用，前端弹窗重复打开直接命中） */
+    public String pickupRecommendKey(Long userId) {
+        return PICKUP_RECOMMEND_PREFIX + nz(userId) + ":result";
+    }
+
+    /** 指定用户的推荐缓存前缀（取件出库后只清该用户，避免误伤他人） */
+    public String pickupRecommendUserPrefix(Long userId) {
+        return PICKUP_RECOMMEND_PREFIX + nz(userId) + ":";
     }
 
     // ==================== 工具 ====================

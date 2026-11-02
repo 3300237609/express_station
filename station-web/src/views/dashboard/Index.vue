@@ -73,15 +73,30 @@ const perfGroups = [
 const trendData = ref([])
 const companyData = ref([])
 
+/** 近 7 日是否有业务量：全 0 时展示空态，避免画一条贴底的 0 值折线占满 320px */
+const hasTrendData = computed(() =>
+  trendData.value.some((item) => Number(item.inboundCount) > 0 || Number(item.pickupCount) > 0)
+)
+
 /** 趋势折线图 */
 const { chartRef: trendRef, render: renderTrend } = useEcharts(() => ({
+  title: hasTrendData.value
+    ? undefined
+    : {
+        text: '暂无数据',
+        left: 'center',
+        top: 'middle',
+        textStyle: { color: '#909399', fontSize: 14, fontWeight: 400 }
+      },
   tooltip: { trigger: 'axis' },
   legend: { data: ['入库量', '取件量'] },
-  grid: { left: 40, right: 20, top: 40, bottom: 30 },
+  // containLabel：让末位日期标签计入网格，避免被容器右缘裁切
+  grid: { left: 40, right: 48, top: 40, bottom: 30, containLabel: true },
   xAxis: {
     type: 'category',
     boundaryGap: false,
-    data: trendData.value.map((item) => item.date)
+    data: trendData.value.map((item) => item.date),
+    axisLabel: { hideOverlap: true }
   },
   yAxis: { type: 'value', minInterval: 1 },
   series: [
@@ -93,7 +108,7 @@ const { chartRef: trendRef, render: renderTrend } = useEcharts(() => ({
 /** 快递公司业务量柱状图 */
 const { chartRef: companyRef, render: renderCompany } = useEcharts(() => ({
   tooltip: { trigger: 'axis' },
-  grid: { left: 40, right: 20, top: 30, bottom: 50 },
+  grid: { left: 40, right: 20, top: 30, bottom: 50, containLabel: true },
   xAxis: {
     type: 'category',
     data: companyData.value.map((item) => item.companyName),
@@ -222,7 +237,7 @@ onMounted(loadDashboard)
       <el-col :xs="24" :md="14">
         <div class="card">
           <div class="card-title">近 7 日入库 / 取件趋势</div>
-          <div ref="trendRef" class="chart-box"></div>
+          <div ref="trendRef" class="chart-box" :class="{ 'chart-box-empty': !hasTrendData }"></div>
         </div>
       </el-col>
       <el-col :xs="24" :md="10">

@@ -155,8 +155,14 @@ public class InboundServiceImpl implements InboundService {
                 expressId, location.getId(), location.getShelfId());
         if (vo != null) {
             expressCache.evictExpress(vo.getId(), vo.getExpressNo());
-            // 入库改了货位占用与货架计数，缓存提交后同步清，保证可视化/列表新鲜
-            commonCache.evictPrefixAfterCommit(CommonCacheService.SHELF_PREFIX, CommonCacheService.LOCATION_PREFIX);
+            // 入库改了货位占用与货架计数，缓存提交后同步清，保证可视化/列表新鲜；
+            // 收件人的取件推荐一起失效（待取件数、紧迫度已变化）
+            if (vo.getReceiverUserId() != null) {
+                commonCache.evictPrefixAfterCommit(CommonCacheService.SHELF_PREFIX, CommonCacheService.LOCATION_PREFIX,
+                        commonCache.pickupRecommendUserPrefix(vo.getReceiverUserId()));
+            } else {
+                commonCache.evictPrefixAfterCommit(CommonCacheService.SHELF_PREFIX, CommonCacheService.LOCATION_PREFIX);
+            }
         }
         return R.success(vo);
     }

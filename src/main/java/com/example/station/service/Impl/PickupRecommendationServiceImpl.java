@@ -4,6 +4,7 @@ import com.example.station.ai.PickupRecommendationTools;
 import com.example.station.common.R;
 import com.example.station.mapper.ExpressMapper;
 import com.example.station.mapper.ShelfLocationMapper;
+import com.example.station.service.CommonCacheService;
 import com.example.station.service.PickupRecommendationService;
 import com.example.station.service.SysConfigService;
 import com.example.station.utils.SecurityUtils;
@@ -50,6 +51,7 @@ public class PickupRecommendationServiceImpl implements PickupRecommendationServ
     private final ShelfLocationMapper shelfLocationMapper;
     private final SysConfigService sysConfigService;
     private final PickupRecommendationTools recommendationTools;
+    private final CommonCacheService cache;
 
     /** ChatClient Builder —— 可选注入（Spring AI 自动配置在无 API Key 时不创建此 bean） */
     private final ChatClient.Builder chatClientBuilder;
@@ -63,11 +65,13 @@ public class PickupRecommendationServiceImpl implements PickupRecommendationServ
             ShelfLocationMapper shelfLocationMapper,
             SysConfigService sysConfigService,
             PickupRecommendationTools recommendationTools,
+            CommonCacheService cache,
             ObjectProvider<ChatClient.Builder> chatClientBuilderProvider) {
         this.expressMapper = expressMapper;
         this.shelfLocationMapper = shelfLocationMapper;
         this.sysConfigService = sysConfigService;
         this.recommendationTools = recommendationTools;
+        this.cache = cache;
         // 如果 bean 不存在，ObjectProvider.getIfAvailable() 返回 null
         this.chatClientBuilder = chatClientBuilderProvider.getIfAvailable();
     }
@@ -108,14 +112,23 @@ public class PickupRecommendationServiceImpl implements PickupRecommendationServ
             return R.error("请先登录！");
         }
 
-        // 2. 先准备降级路径所需数据（无论走 LLM 还是规则引擎都需要）
+        // 2. 命中缓存直接返回：弹窗重复打开、多端切换无需再等 LLM（5 分钟内数据足够新）
+        String cacheKey = cache.pickupRecommendKey(userId);
+        PickupRecommendationVO cached = cache.get(cacheKey, PickupRecommendationVO.class);
+        if (cached != null) {
+            log.info("【取件推荐】命中缓存，userId={}，source={}", userId, cached.getSource());
+            return R.success(cached);
+        }
+
+        // 3. 先准备降级路径所需数据（无论走 LLM 还是规则引擎都需要）
         ContextData ctx = buildContextData(userId);
 
-        // 3. 判断是否走 LLM：开关开 + API Key 不为空 + ChatClient bean 存在（自动配置成功）
+        // 4. 判断是否走 LLM：开关开 + API Key 不为空 + ChatClient bean 存在（自动配置成功）
         if (llmEnabled && StringUtils.hasText(llmApiKey) && chatClientBuilder != null) {
             try {
                 PickupRecommendationVO result = callLlm(userId, ctx);
                 if (result != null) {
+                    cache.put(cacheKey, result, CommonCacheService.TTL_RECOMMEND);
                     log.info("【取件推荐】LLM 模式成功，userId={}", userId);
                     return R.success(result);
                 }
@@ -128,8 +141,9 @@ public class PickupRecommendationServiceImpl implements PickupRecommendationServ
                     llmEnabled, StringUtils.hasText(llmApiKey) ? "已配置" : "未配置");
         }
 
-        // 4. 规则引擎降级
+        // 5. 规则引擎降级（同样写缓存：LLM 故障时重复请求不必反复查库）
         PickupRecommendationVO result = ruleBasedRecommend(ctx);
+        cache.put(cacheKey, result, CommonCacheService.TTL_RECOMMEND);
         log.info("【取件推荐】规则引擎模式，userId={}", userId);
         return R.success(result);
     }

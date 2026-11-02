@@ -10,14 +10,15 @@ import * as echarts from 'echarts'
 export function useEcharts(getOption) {
   const chartRef = ref(null)
   let chart = null
+  let observer = null
 
-  /** 渲染/更新图表 */
+  /** 渲染/更新图表（notMerge：避免旧 option 残留，如空态标题在数据到达后不消失） */
   function render() {
     if (!chartRef.value) return
     if (!chart) {
       chart = echarts.init(chartRef.value)
     }
-    chart.setOption(getOption())
+    chart.setOption(getOption(), true)
   }
 
   /** 窗口尺寸变化时重绘 */
@@ -30,10 +31,17 @@ export function useEcharts(getOption) {
     await nextTick()
     render()
     window.addEventListener('resize', resize)
+    // 容器尺寸变化（侧栏折叠、栅格换行、空态高度切换）不触发 window.resize，需单独监听
+    if (typeof ResizeObserver !== 'undefined' && chartRef.value) {
+      observer = new ResizeObserver(() => resize())
+      observer.observe(chartRef.value)
+    }
   })
 
   onBeforeUnmount(() => {
     window.removeEventListener('resize', resize)
+    observer?.disconnect()
+    observer = null
     chart?.dispose()
     chart = null
   })

@@ -1,4 +1,4 @@
-﻿<script setup>
+<script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -285,40 +285,40 @@ onMounted(async () => {
     <!-- 列表 -->
     <div class="table-card">
       <el-table v-loading="loading" :data="list" border stripe style="width: 100%">
-        <el-table-column prop="expressNo" label="快递单号" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="companyName" label="快递公司" min-width="100" show-overflow-tooltip />
-        <el-table-column prop="receiverName" label="收件人" width="100" />
-        <el-table-column prop="receiverPhone" label="收件手机号" width="120" />
-        <el-table-column prop="pickupCode" label="取件码" width="90" align="center">
+        <el-table-column prop="expressNo" label="快递单号" min-width="130" show-overflow-tooltip />
+        <el-table-column prop="companyName" label="快递公司" min-width="78" show-overflow-tooltip />
+        <el-table-column prop="receiverName" label="收件人" width="80" show-overflow-tooltip />
+        <el-table-column prop="receiverPhone" label="收件手机号" width="125" show-overflow-tooltip />
+        <el-table-column prop="pickupCode" label="取件码" width="78" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.pickupCode" type="warning" effect="plain">{{ row.pickupCode }}</el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="locationNo" label="货位" width="100" show-overflow-tooltip>
+        <el-table-column prop="locationNo" label="货位" width="78" show-overflow-tooltip>
           <template #default="{ row }">{{ row.locationNo || '-' }}</template>
         </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
+        <el-table-column label="状态" width="80" align="center">
           <template #default="{ row }">
             <dict-tag type="EXPRESS_STATUS" :code="row.status" />
           </template>
         </el-table-column>
-        <el-table-column label="超期" width="90" align="center">
+        <el-table-column label="超期" width="76" align="center">
           <template #default="{ row }">
             <el-tag v-if="row.overdueFlag === 1" type="danger" size="small">已超期</el-tag>
             <span v-else>-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="storageTime" label="入库时间" width="170" />
-        <el-table-column label="操作" width="290" :fixed="!isMobile ? 'right' : false">
+        <el-table-column label="操作" width="250" :fixed="!isMobile ? 'right' : false">
           <template #default="{ row }">
             <!-- 桌面端：完整按钮组 -->
             <template v-if="!isMobile">
-              <el-button link type="primary" @click="goDetail(row)">详情</el-button>
+              <el-button link type="primary" size="small" @click="goDetail(row)">详情</el-button>
               <el-button
                 v-if="authStore.hasRole(['ADMIN']) && row.status === 'WAITING_PICKUP'"
                 link
                 type="success"
+                size="small"
                 @click="openLocationDialog(row)"
               >
                 调整货位
@@ -327,6 +327,7 @@ onMounted(async () => {
                 v-if="authStore.hasRole(['ADMIN'])"
                 link
                 type="warning"
+                size="small"
                 @click="openStatusDialog(row)"
               >
                 状态修正
@@ -335,6 +336,7 @@ onMounted(async () => {
                 v-if="authStore.hasRole(['ADMIN'])"
                 link
                 type="danger"
+                size="small"
                 @click="handleDelete(row)"
               >
                 删除

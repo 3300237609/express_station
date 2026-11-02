@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getDashboard, getTrend, getCompanyStats } from '@/api/statistics'
 import { useEcharts } from '@/composables/useEcharts'
 
@@ -21,12 +21,31 @@ const dashboard = ref({
 const trendData = ref([])
 const companyData = ref([])
 
+/** 近 7 日是否有业务量：全 0 时展示空态，避免贴底折线占满 320px */
+const hasTrendData = computed(() =>
+  trendData.value.some((i) => Number(i.inboundCount) > 0 || Number(i.pickupCount) > 0)
+)
+
 /** 入库/取件趋势折线图 */
 const { chartRef: trendRef, render: renderTrend } = useEcharts(() => ({
+  title: hasTrendData.value
+    ? undefined
+    : {
+        text: '暂无数据',
+        left: 'center',
+        top: 'middle',
+        textStyle: { color: '#909399', fontSize: 14, fontWeight: 400 }
+      },
   tooltip: { trigger: 'axis' },
   legend: { data: ['入库量', '取件量'] },
-  grid: { left: 40, right: 20, top: 40, bottom: 30 },
-  xAxis: { type: 'category', boundaryGap: false, data: trendData.value.map((i) => i.date) },
+  // containLabel：末位日期标签计入网格，避免被容器右缘裁切
+  grid: { left: 40, right: 48, top: 40, bottom: 30, containLabel: true },
+  xAxis: {
+    type: 'category',
+    boundaryGap: false,
+    data: trendData.value.map((i) => i.date),
+    axisLabel: { hideOverlap: true }
+  },
   yAxis: { type: 'value', minInterval: 1 },
   series: [
     { name: '入库量', type: 'line', smooth: true, areaStyle: { opacity: 0.15 }, data: trendData.value.map((i) => i.inboundCount) },
@@ -37,7 +56,7 @@ const { chartRef: trendRef, render: renderTrend } = useEcharts(() => ({
 /** 快递公司业务量柱状图 */
 const { chartRef: barRef, render: renderBar } = useEcharts(() => ({
   tooltip: { trigger: 'axis' },
-  grid: { left: 40, right: 20, top: 30, bottom: 60 },
+  grid: { left: 40, right: 20, top: 30, bottom: 60, containLabel: true },
   xAxis: {
     type: 'category',
     data: companyData.value.map((i) => i.companyName),
@@ -94,7 +113,9 @@ const { chartRef: pieRef, render: renderPie } = useEcharts(() => ({
       type: 'pie',
       radius: ['42%', '66%'],
       center: ['50%', '45%'],
-      label: { formatter: '{b}: {c}' },
+      // 标签收进扇区内部：外置标签在 320px 高的小卡片里会被左右边缘裁掉
+      label: { position: 'inside', formatter: '{c}', fontSize: 12, color: '#fff' },
+      labelLine: { show: false },
       data: [
         { name: '正常待取', value: Number(dashboard.value.waitingPickup || 0), itemStyle: { color: '#e6a23c' } },
         { name: '异常件', value: Number(dashboard.value.exceptionCount || 0), itemStyle: { color: '#f56c6c' } },
@@ -157,7 +178,7 @@ onMounted(loadAll)
       <el-col :xs="24" :md="14">
         <div class="card">
           <div class="card-title">近 7 日入库 / 取件趋势</div>
-          <div ref="trendRef" class="chart-box"></div>
+          <div ref="trendRef" class="chart-box" :class="{ 'chart-box-empty': !hasTrendData }"></div>
         </div>
       </el-col>
       <el-col :xs="24" :md="10">
